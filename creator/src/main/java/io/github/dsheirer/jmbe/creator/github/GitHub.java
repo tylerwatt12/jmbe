@@ -31,6 +31,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
@@ -40,6 +42,8 @@ import java.nio.file.StandardOpenOption;
 public class GitHub
 {
     private final static Logger mLog = LoggerFactory.getLogger(GitHub.class);
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(15);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
 
     private GitHub()
     {
@@ -56,17 +60,30 @@ public class GitHub
     {
         HttpClient client = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.ALWAYS)
+            .connectTimeout(CONNECT_TIMEOUT)
             .build();
 
         System.out.println("Downloading: " + release.getDownloadUrl());
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(release.getDownloadUrl())).build();
+        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(release.getDownloadUrl()))
+            .timeout(REQUEST_TIMEOUT).build();
 
         try
         {
             HttpResponse<Path> response = client.send(request, HttpResponse.BodyHandlers.ofFileDownload(directory,
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE));
             System.out.println("Download Complete: HTTP Status " + response.statusCode());
-            return response.body();
+
+            if(response.statusCode() >= 200 && response.statusCode() < 300)
+            {
+                return response.body();
+            }
+
+            Files.deleteIfExists(response.body());
+        }
+        catch(InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            System.out.println("Download Interrupted");
         }
         catch(Exception e)
         {
@@ -84,8 +101,21 @@ public class GitHub
      */
     public static Release getLatestRelease(String repositoryURL)
     {
-        HttpClient httpClient = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(repositoryURL)).build();
+        return requestRelease(repositoryURL, true);
+    }
+
+    /**
+     * Obtains one exact tagged release from the repository.
+     */
+    public static Release getRelease(String repositoryURL, String tagName)
+    {
+        return requestRelease(repositoryURL + "/tags/" + tagName, false);
+    }
+
+    private static Release requestRelease(String url, boolean releaseList)
+    {
+        HttpClient httpClient = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).timeout(REQUEST_TIMEOUT).build();
 
         try
         {
@@ -93,14 +123,19 @@ public class GitHub
 
             if(response.statusCode() == 200)
             {
-                return parseResponse(response.body());
+                return releaseList ? parseReleaseList(response.body()) : parseRelease(response.body());
             }
             else
             {
                 mLog.error("Error while fetching latest releases - HTTP:" + response.statusCode());
             }
         }
-        catch(IOException | InterruptedException e)
+        catch(InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            mLog.error("Interrupted while detecting the requested JMBE release", e);
+        }
+        catch(IOException e)
         {
             mLog.error("Error while detecting the current release version of JMBE library", e);
         }
@@ -113,7 +148,7 @@ public class GitHub
      * @param json string returned from URL call
      * @return latest release version
      */
-    private static Release parseResponse(String json)
+    private static Release parseReleaseList(String json)
     {
         Release release = null;
 
@@ -145,6 +180,23 @@ public class GitHub
         }
 
         return release;
+    }
+
+    private static Release parseRelease(String json)
+    {
+        if(json != null)
+        {
+            JsonElement element = JsonParser.parseString(json);
+
+            if(element.isJsonObject())
+            {
+                JsonObject releaseObject = element.getAsJsonObject();
+                Version version = getVersion(releaseObject);
+                return version != null ? new Release(version, releaseObject) : null;
+            }
+        }
+
+        return null;
     }
 
     /**

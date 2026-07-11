@@ -20,6 +20,7 @@
 package jmbe.codec.imbe;
 
 import jmbe.binary.BinaryFrame;
+import jmbe.codec.InverseDct;
 import jmbe.edac.Golay23;
 import jmbe.edac.Hamming15;
 
@@ -216,7 +217,7 @@ class IMBEFrame
 
             for(int m = 2; m <= 6; m++)
             {
-                coefficients[i][1] += (2.0f * gains[m] * (float)Math.cos((Math.PI * (m - 1) * (i - 0.5f)) / 6.0f));
+                coefficients[i][1] += 2.0f * gains[m] * InverseDct.coefficient(6, m, i);
             }
         }
 
@@ -248,8 +249,7 @@ class IMBEFrame
 
                 for(int k = 2; k <= harmonicCount; k++)
                 {
-                    residuals[l] += 2.0f * coefficients[i][k] * (float)Math.cos((Math.PI * (k - 1) * (j - 0.5f)) /
-                        harmonicCount);
+                    residuals[l] += 2.0f * coefficients[i][k] * InverseDct.coefficient(harmonicCount, k, j);
                 }
 
                 l++;

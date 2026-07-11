@@ -25,6 +25,7 @@ import jmbe.iface.IAudioWithMetadata;
 public class IMBEAudioCodec implements IAudioCodec
 {
     public static final String CODEC_NAME = "IMBE";
+    private static final int FRAME_BYTE_LENGTH = 18;
 
     private IMBESynthesizer mSynthesizer;
 
@@ -44,6 +45,7 @@ public class IMBEAudioCodec implements IAudioCodec
      */
     public float[] getAudio(byte[] frameData)
     {
+        validate(frameData);
         IMBEFrame frame = new IMBEFrame(frameData);
         return mSynthesizer.getAudio(frame);
     }
@@ -59,6 +61,7 @@ public class IMBEAudioCodec implements IAudioCodec
     @Override
     public IAudioWithMetadata getAudioWithMetadata(byte[] frameData)
     {
+        validate(frameData);
         IMBEFrame frame = new IMBEFrame(frameData);
         return AudioWithMetadata.create(mSynthesizer.getAudio(frame));
     }
@@ -70,5 +73,13 @@ public class IMBEAudioCodec implements IAudioCodec
     public String getCodecName()
     {
         return CODEC_NAME;
+    }
+
+    private static void validate(byte[] frameData)
+    {
+        if(frameData == null || frameData.length != FRAME_BYTE_LENGTH)
+        {
+            throw new IllegalArgumentException("IMBE frame must contain exactly " + FRAME_BYTE_LENGTH + " bytes");
+        }
     }
 }

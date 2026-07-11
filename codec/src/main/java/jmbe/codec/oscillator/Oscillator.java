@@ -65,6 +65,11 @@ public class Oscillator
         return samples;
     }
 
+    public void reset()
+    {
+        mCurrentAngle = new Complex(0.0f, -1.0f);
+    }
+
 
     /**
      * Steps the current angle by the angle per sample amount

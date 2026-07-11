@@ -21,6 +21,7 @@ package jmbe.codec.ambe;
 
 import jmbe.codec.FrameType;
 import jmbe.codec.MBEModelParameters;
+import jmbe.codec.InverseDct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +36,7 @@ class AMBEModelParameters extends MBEModelParameters
 
     private static final float ONE_OVER_TWO_SQR_TWO = 1.0f / (2.0f * (float)Math.sqrt(2.0f));
     private static final float TWO_PI = 2.0f * (float)Math.PI;
+    private static final float[] HALF_LOG2_HARMONIC_COUNT = createHalfLog2HarmonicCount();
     private float mGain;
 
     /**
@@ -187,7 +189,7 @@ class AMBEModelParameters extends MBEModelParameters
         float[] previousA = previousParameters.getLog2SpectralAmplitudes();
         float kappa = previousL / (float)getL();
         float lambdaSum = getPredictionResidualAverage(predictionResiduals);
-        float gain = mGain - (0.5f * (float)(Math.log(getL()) / Math.log(2.0))) - lambdaSum;
+        float gain = mGain - HALF_LOG2_HARMONIC_COUNT[getL()] - lambdaSum;
         float summation43 = getScaledInterpolationSum(previousA, previousL, kappa);
         float[] logSpectralAmplitudes = createLogSpectralAmplitudes(predictionResiduals, previousA, previousL,
             kappa, summation43, gain);
@@ -196,6 +198,18 @@ class AMBEModelParameters extends MBEModelParameters
         setLog2SpectralAmplitudes(logSpectralAmplitudes);
         setSpectralAmplitudes(spectralAmplitudes, previousParameters.getLocalEnergy(),
             previousParameters.getAmplitudeThreshold());
+    }
+
+    private static float[] createHalfLog2HarmonicCount()
+    {
+        float[] values = new float[57];
+
+        for(int harmonicCount = 1; harmonicCount < values.length; harmonicCount++)
+        {
+            values[harmonicCount] = 0.5f * (float)(Math.log(harmonicCount) / Math.log(2.0));
+        }
+
+        return values;
     }
 
     private float getPredictionResidualAverage(float[] predictionResiduals)
@@ -332,8 +346,7 @@ class AMBEModelParameters extends MBEModelParameters
 
             for(int m = 2; m <= 8; m++)
             {
-                residualVector[i] += (2.0 * gainVector[m] * (float)Math.cos(((float)Math.PI * (m - 1) * (i - 0.5f)) /
-                    8.0f));
+                residualVector[i] += 2.0f * gainVector[m] * InverseDct.floatCoefficient(8, m, i);
             }
         }
 
@@ -412,8 +425,7 @@ class AMBEModelParameters extends MBEModelParameters
 
                 for(int k = 2; k <= blockLengths[i]; k++)
                 {
-                    acc += 2.0f * coefficients[i][k] *
-                        (float)Math.cos(((float)Math.PI * (k - 1) * (j - 0.5f)) / blockLengths[i]);
+                    acc += 2.0f * coefficients[i][k] * InverseDct.floatCoefficient(blockLengths[i], k, j);
                 }
 
                 predictionResiduals[lPointer++] = acc;

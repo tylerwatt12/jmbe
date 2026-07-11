@@ -66,6 +66,14 @@ public class Release
     }
 
     /**
+     * Exact Git tag represented by this release.
+     */
+    public String getTagName()
+    {
+        return getTag("tag_name");
+    }
+
+    /**
      * Assets URL
      */
     public String getAssetsUrl()
@@ -100,7 +108,7 @@ public class Release
         {
             JsonElement element = mJsonObject.get(tagName);
 
-            if(!element.isJsonNull())
+            if(element != null && !element.isJsonNull())
             {
                 return element.toString().replace("\"", "");
             }

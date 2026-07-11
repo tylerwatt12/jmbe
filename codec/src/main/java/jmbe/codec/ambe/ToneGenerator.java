@@ -73,4 +73,10 @@ class ToneGenerator
         }
     }
 
+    void reset()
+    {
+        mOscillator1.reset();
+        mOscillator2.reset();
+    }
+
 }

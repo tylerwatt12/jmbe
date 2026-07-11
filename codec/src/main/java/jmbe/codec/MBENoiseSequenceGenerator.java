@@ -19,9 +19,12 @@
 
 package jmbe.codec;
 
+import java.util.Arrays;
+
 class MBENoiseSequenceGenerator
 {
-    private float mSample = 3147;
+    private static final float INITIAL_SAMPLE = 3147.0f;
+    private float mSample = INITIAL_SAMPLE;
     private float[] mCurrentBuffer = new float[256];
 
     private float next()
@@ -47,5 +50,11 @@ class MBENoiseSequenceGenerator
         }
 
         return copy;
+    }
+
+    void reset()
+    {
+        mSample = INITIAL_SAMPLE;
+        Arrays.fill(mCurrentBuffer, 0.0f);
     }
 }

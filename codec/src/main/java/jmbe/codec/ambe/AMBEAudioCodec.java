@@ -28,6 +28,7 @@ import jmbe.iface.IAudioWithMetadata;
 public class AMBEAudioCodec implements IAudioCodec
 {
     public static final String CODEC_NAME = "AMBE 3600 x 2450";
+    private static final int FRAME_BYTE_LENGTH = 9;
     private AMBESynthesizer mSynthesizer = new AMBESynthesizer();
 
     /**
@@ -37,6 +38,7 @@ public class AMBEAudioCodec implements IAudioCodec
      */
     public float[] getAudio(byte[] frameData)
     {
+        validate(frameData);
         return mSynthesizer.getAudio(new AMBEFrame(frameData));
     }
 
@@ -50,6 +52,7 @@ public class AMBEAudioCodec implements IAudioCodec
     @Override
     public IAudioWithMetadata getAudioWithMetadata(byte[] frameData)
     {
+        validate(frameData);
         AMBEFrame frame = new AMBEFrame(frameData);
         return frame.getAudioWithMetadata(mSynthesizer.getAudio(frame));
     }
@@ -70,5 +73,13 @@ public class AMBEAudioCodec implements IAudioCodec
     public String getCodecName()
     {
         return CODEC_NAME;
+    }
+
+    private static void validate(byte[] frameData)
+    {
+        if(frameData == null || frameData.length != FRAME_BYTE_LENGTH)
+        {
+            throw new IllegalArgumentException("AMBE frame must contain exactly " + FRAME_BYTE_LENGTH + " bytes");
+        }
     }
 }

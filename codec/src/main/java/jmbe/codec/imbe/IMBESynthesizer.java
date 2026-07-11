@@ -35,8 +35,10 @@ class IMBESynthesizer extends MBESynthesizer
         return mPreviousParameters;
     }
 
-    void reset()
+    @Override
+    protected void reset()
     {
+        super.reset();
         mPreviousParameters = new IMBEModelParameters();
     }
 

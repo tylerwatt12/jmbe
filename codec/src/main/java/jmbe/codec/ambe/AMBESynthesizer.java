@@ -38,8 +38,11 @@ class AMBESynthesizer extends MBESynthesizer
         return mPreviousFrame;
     }
 
-    void reset()
+    @Override
+    protected void reset()
     {
+        super.reset();
+        mToneGenerator.reset();
         mPreviousFrame = new AMBEModelParameters();
     }
 

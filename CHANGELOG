@@ -1,3 +1,6 @@
+1.0.12 2026-07-11 Fix cross-frame synthesis state, make resets complete, precompute inverse-DCT coefficients,
+      validate frame sizes, and harden the exact-version standalone creator workflow.
+
 1.0.11 2026-07-11 Include java.net.http in the standalone creator runtime.
 
 1.0.10 2026-07-11 Java 25-compatible VCE fork release baseline. Updates creator and library provenance.

@@ -96,7 +96,7 @@ public abstract class MBESynthesizer
     private final WhiteNoiseGenerator mWhiteNoiseGenerator = new WhiteNoiseGenerator();
     private final MBENoiseSequenceGenerator mMBENoiseSequenceGenerator = new MBENoiseSequenceGenerator();
     private final FloatFFT_1D mFFT = new FloatFFT_1D(256);
-    private final float[] mNoiseSamples = new float[256];
+    private float[] mNoiseSamples = new float[256];
     private final float[] mDftBinScalor = new float[128];
     private float[] mPreviousPhaseO = new float[57];
     private float[] mPreviousPhaseV = new float[57];
@@ -228,7 +228,11 @@ public abstract class MBESynthesizer
         mFFT.realInverse(Uw, true);
         float[] unvoiced = combineUnvoicedSamples(Uw);
 
+        //Keep the current inverse-FFT result for the next frame and recycle the old previous-frame buffer.
+        //The buffers must remain distinct or the noise generator will overwrite the overlap history.
+        float[] reusable = mPreviousUw;
         mPreviousUw = Uw;
+        mNoiseSamples = reusable;
 
         return unvoiced;
     }
@@ -295,7 +299,21 @@ public abstract class MBESynthesizer
         }
 
         return UNVOICED_SCALING_COEFFICIENT * amplitude /
-            (float)Math.sqrt(numerator / (maximum - minimum));
+            (float)Math.sqrt(numerator / (upperBound - minimum));
+    }
+
+    /**
+     * Clears all synthesis history at a call boundary.
+     */
+    protected void reset()
+    {
+        mMBENoiseSequenceGenerator.reset();
+        Arrays.fill(mNoiseSamples, 0.0f);
+        Arrays.fill(mPreviousUw, 0.0f);
+        Arrays.fill(mPreviousPhaseO, 0.0f);
+        Arrays.fill(mPreviousPhaseV, 0.0f);
+        Arrays.fill(mCurrentPhaseO, 0.0f);
+        Arrays.fill(mCurrentPhaseV, 0.0f);
     }
 
     private float[] combineUnvoicedSamples(float[] uw)
