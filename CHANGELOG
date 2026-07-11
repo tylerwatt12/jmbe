@@ -1,3 +1,5 @@
+1.0.10 2026-07-11 Java 25-compatible VCE fork release baseline. Updates creator and library provenance.
+
 1.0.0 20191117 AMBE CODEC support
 
 0.3.4 20180415 Converted build script from Ant to Gradle

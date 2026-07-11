@@ -4,17 +4,17 @@ apply plugin: 'idea'
 description = 'JMBE Audio Library build script'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_26
-    targetCompatibility = JavaVersion.VERSION_26
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
 subprojects {
     apply plugin: 'java'
-    version = '1.0.9'
+    version = '1.0.10'
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_26
-        targetCompatibility = JavaVersion.VERSION_26
+        sourceCompatibility = JavaVersion.VERSION_25
+        targetCompatibility = JavaVersion.VERSION_25
     }
 }
 

@@ -52,7 +52,7 @@ public class Creator
 {
     private final static Logger mLog = LoggerFactory.getLogger(GitHub.class);
 
-    private final static String GITHUB_JMBE_RELEASES_URL = "https://api.github.com/repos/dsheirer/jmbe/releases";
+    private final static String GITHUB_JMBE_RELEASES_URL = "https://api.github.com/repos/tylerwatt12/jmbe/releases";
 
     /**
      * Exit code to indicate that the process completed successfully
@@ -166,7 +166,7 @@ public class Creator
         sb.append("Manifest-Version: 1.0\r\n");
         sb.append("Implementation-Title: jmbe\r\n");
         sb.append("Version: ").append(version).append("\r\n");
-        sb.append("Site: https://github.com/DSheirer/jmbe\r\n");
+        sb.append("Site: https://github.com/tylerwatt12/jmbe\r\n");
 
         Path manifest = metaDirectory.resolve("MANIFEST.MF");
         Files.writeString(manifest, sb.toString(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);

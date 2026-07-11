@@ -23,7 +23,7 @@ jar {
     manifest {
         attributes('Implementation-Title': rootProject.name,
                 'Version': project.version,
-                'Site': 'https://github.com/DSheirer/jmbe')
+                'Site': 'https://github.com/tylerwatt12/jmbe')
     }
     from rootProject.file('LICENSE')
 

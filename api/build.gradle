@@ -26,8 +26,7 @@ jar {
     manifest {
         attributes('Implementation-Title': rootProject.name + ' API',
                 'Implementation-Version': project.version,
-                'Website': 'https://github.com/DSheirer/jmbe')
+                'Website': 'https://github.com/tylerwatt12/jmbe')
     }
     from rootProject.file('LICENSE')
 }
-

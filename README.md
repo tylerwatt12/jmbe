@@ -1,10 +1,10 @@
-Copyright (C) 2015-2020 Dennis Sheirer
+Copyright (C) 2015-2026 Dennis Sheirer
 
 # jmbe - Java Multi-Band Excitation library
 
 ## Fork Notes
 
-This fork is maintained for use with my fork of [sdrtrunk](https://github.com/bazineta/sdrtrunk) and
+This fork is maintained for use with [sdrtrunk-vce](https://github.com/tylerwatt12/sdrtrunk) and
 focuses on practical codec maintenance:
 
 * **Lint and code quality** — visibility narrowing, dead code removal, encapsulation of internal
@@ -12,7 +12,7 @@ focuses on practical codec maintenance:
 * **Removed unused code** — debug wave-generation utilities, the unused `ambeplus` package, and
   internal tables and classes not reachable from the sdrtrunk API. The old code is still in the repo
   history, just not in the production version.
-* **Build compatibility** — updated for current Gradle and JDK toolchains; I use JDK 26
+* **Build compatibility** — updated for current Gradle and JDK toolchains; the library and creator target Java 25
 * **Reduced allocation pressure** — instance-field reuse for hot-path buffers (noise samples, phase
   arrays, DFT bin scalars); eliminated per-frame array allocations in spectral amplitude interpolation,
   enum lookups, and overlap-add synthesis
@@ -54,7 +54,7 @@ Note: this patent notice is verbatim from the mbelib library README at (https://
 # End Users: Creating the JMBE Library (Version 1.0.7+)
 ***YOU DO NOT HAVE TO INSTALL THE JAVA JDK.*** The instructions for creating the JMBE library have changed starting with version 1.0.7.
 
-1. Download the latest **JMBE Creator** for your operating system from the [Releases](https://github.com/DSheirer/jmbe/releases) page.
+1. Download the latest **JMBE Creator** for your operating system from the [Releases](https://github.com/tylerwatt12/jmbe/releases) page.
 2. Unzip the JMBE Creator
 3. Open a command/console window and run the JMBE Creator application
   * **Windows:**  (unzip directory)/bin/creator.bat
