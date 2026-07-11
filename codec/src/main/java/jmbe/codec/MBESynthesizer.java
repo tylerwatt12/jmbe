@@ -278,6 +278,13 @@ public abstract class MBESynthesizer
         }
 
         int upperBound = Math.min(maximum, 128);
+        int binCount = upperBound - minimum;
+
+        if(binCount <= 0)
+        {
+            return 0.0f;
+        }
+
         float numerator = 0.0f;
 
         for(int n = minimum; n < upperBound; n++)
@@ -299,7 +306,7 @@ public abstract class MBESynthesizer
         }
 
         return UNVOICED_SCALING_COEFFICIENT * amplitude /
-            (float)Math.sqrt(numerator / (upperBound - minimum));
+            (float)Math.sqrt(numerator / binCount);
     }
 
     /**

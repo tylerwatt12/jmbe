@@ -188,7 +188,10 @@ public class Creator
         {
             Path toLicense = getOutputDirectory(downloadDirectory).resolve(fileName);
             Files.copy(license, toLicense, StandardCopyOption.REPLACE_EXISTING);
+            return;
         }
+
+        throw new IOException("JMBE source archive is missing its LICENSE file");
     }
 
     /**
@@ -337,7 +340,14 @@ public class Creator
             throw new IOException("The creator runtime does not contain the Java compiler");
         }
 
-        Files.createDirectories(Path.of(options.get(options.indexOf("-d") + 1)));
+        int outputOption = options.indexOf("-d");
+
+        if(outputOption < 0 || outputOption + 1 >= options.size())
+        {
+            throw new IOException("Compiler output directory is not configured");
+        }
+
+        Files.createDirectories(Path.of(options.get(outputOption + 1)));
 
         try(StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null))
         {
