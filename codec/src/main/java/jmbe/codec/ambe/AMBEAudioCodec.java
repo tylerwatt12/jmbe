@@ -19,6 +19,11 @@
 
 package jmbe.codec.ambe;
 
+import java.util.Collections;
+import java.util.Map;
+import jmbe.audio.AudioWithMetadata;
+import jmbe.audio.FrameQualityMetadata;
+import jmbe.codec.VoiceFrameSynthesis;
 import jmbe.iface.IAudioCodec;
 import jmbe.iface.IAudioWithMetadata;
 
@@ -54,7 +59,12 @@ public class AMBEAudioCodec implements IAudioCodec
     {
         validate(frameData);
         AMBEFrame frame = new AMBEFrame(frameData);
-        return frame.getAudioWithMetadata(mSynthesizer.getAudio(frame));
+        VoiceFrameSynthesis synthesis = mSynthesizer.synthesize(frame);
+        AudioWithMetadata toneMetadata = frame.getAudioWithMetadata(synthesis.audio());
+        Map<String,String> metadata = FrameQualityMetadata.create(
+            toneMetadata.hasMetadata() ? toneMetadata.getMetadata() : Collections.emptyMap(), synthesis,
+            frame.getFecErrorCount(), AMBEFrame.FEC_PROTECTED_BITS);
+        return AudioWithMetadata.create(synthesis.audio(), metadata);
     }
 
     /**

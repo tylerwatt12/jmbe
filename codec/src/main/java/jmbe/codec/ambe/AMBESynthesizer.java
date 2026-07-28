@@ -21,6 +21,7 @@ package jmbe.codec.ambe;
 
 import jmbe.codec.MBEModelParameters;
 import jmbe.codec.MBESynthesizer;
+import jmbe.codec.VoiceFrameSynthesis;
 
 class AMBESynthesizer extends MBESynthesizer
 {
@@ -66,57 +67,67 @@ class AMBESynthesizer extends MBESynthesizer
      */
     float[] getAudio(AMBEFrame frame)
     {
-        float[] audio = frame.isToneFrame() ? getToneFrameAudio(frame) : getVoiceFrameAudio(frame);
+        return synthesize(frame).audio();
+    }
+
+    /**
+     * Generates audio and reports the action used to synthesize the frame.
+     */
+    VoiceFrameSynthesis synthesize(AMBEFrame frame)
+    {
+        VoiceFrameSynthesis synthesis = frame.isToneFrame() ? getToneFrameAudio(frame) : getVoiceFrameAudio(frame);
+        float[] audio = synthesis.audio();
 
         if(audio == null)
         {
             audio = new float[SAMPLES_PER_FRAME];
         }
 
-        return audio;
+        return new VoiceFrameSynthesis(audio, synthesis.outcome());
     }
 
-    private float[] getToneFrameAudio(AMBEFrame frame)
+    private VoiceFrameSynthesis getToneFrameAudio(AMBEFrame frame)
     {
         if(frame.getToneParameters().isValidTone())
         {
-            return getTone(frame.getToneParameters());
+            return new VoiceFrameSynthesis(getTone(frame.getToneParameters()), VoiceFrameSynthesis.Outcome.DECODED);
         }
 
         mPreviousFrame.setRepeatCount(mPreviousFrame.getRepeatCount() + 1);
 
         if(!mPreviousFrame.isMaxFrameRepeat())
         {
-            return getVoice(mPreviousFrame);
+            return new VoiceFrameSynthesis(getVoice(mPreviousFrame), VoiceFrameSynthesis.Outcome.REPEATED);
         }
 
-        return muteFrame();
+        return concealFrame();
     }
 
-    private float[] getVoiceFrameAudio(AMBEFrame frame)
+    private VoiceFrameSynthesis getVoiceFrameAudio(AMBEFrame frame)
     {
         AMBEModelParameters parameters = frame.getVoiceParameters(mPreviousFrame);
 
         if(parameters.isMaxFrameRepeat())
         {
-            return muteFrame();
+            return concealFrame();
         }
 
         if(parameters.isErasureFrame())
         {
             mPreviousFrame = parameters;
-            return getWhiteNoise();
+            return new VoiceFrameSynthesis(getWhiteNoise(), VoiceFrameSynthesis.Outcome.CONCEALED);
         }
 
         float[] audio = getVoice(parameters);
         mPreviousFrame = parameters;
 
-        return audio;
+        return new VoiceFrameSynthesis(audio, parameters.getRepeatCount() > 0 ?
+            VoiceFrameSynthesis.Outcome.REPEATED : VoiceFrameSynthesis.Outcome.DECODED);
     }
 
-    private float[] muteFrame()
+    private VoiceFrameSynthesis concealFrame()
     {
         mPreviousFrame = new AMBEModelParameters();
-        return getWhiteNoise();
+        return new VoiceFrameSynthesis(getWhiteNoise(), VoiceFrameSynthesis.Outcome.CONCEALED);
     }
 }

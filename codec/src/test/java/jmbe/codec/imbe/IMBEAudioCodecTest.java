@@ -2,9 +2,13 @@ package jmbe.codec.imbe;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 import java.util.HexFormat;
+import jmbe.audio.FrameQualityMetadata;
+import jmbe.iface.IAudioWithMetadata;
 import org.junit.Test;
 
 public class IMBEAudioCodecTest
@@ -32,5 +36,15 @@ public class IMBEAudioCodecTest
         assertThrows(IllegalArgumentException.class, () -> codec.getAudio(null));
         assertThrows(IllegalArgumentException.class, () -> codec.getAudio(new byte[17]));
         assertThrows(IllegalArgumentException.class, () -> codec.getAudio(new byte[19]));
+    }
+
+    @Test
+    public void exposesBoundedFrameQualityMetadata()
+    {
+        IAudioWithMetadata result = new IMBEAudioCodec().getAudioWithMetadata(FRAME_1);
+
+        assertNotNull(result.getMetadata().get(FrameQualityMetadata.OUTCOME));
+        assertTrue(Integer.parseInt(result.getMetadata().get(FrameQualityMetadata.FEC_ERRORS)) >= 0);
+        assertEquals("137", result.getMetadata().get(FrameQualityMetadata.FEC_PROTECTED_BITS));
     }
 }

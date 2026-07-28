@@ -19,6 +19,8 @@ package jmbe.codec.imbe;
  ******************************************************************************/
 
 import jmbe.audio.AudioWithMetadata;
+import jmbe.audio.FrameQualityMetadata;
+import jmbe.codec.VoiceFrameSynthesis;
 import jmbe.iface.IAudioCodec;
 import jmbe.iface.IAudioWithMetadata;
 
@@ -63,7 +65,9 @@ public class IMBEAudioCodec implements IAudioCodec
     {
         validate(frameData);
         IMBEFrame frame = new IMBEFrame(frameData);
-        return AudioWithMetadata.create(mSynthesizer.getAudio(frame));
+        VoiceFrameSynthesis synthesis = mSynthesizer.synthesize(frame);
+        return AudioWithMetadata.create(synthesis.audio(), FrameQualityMetadata.create(null, synthesis,
+            frame.getFecErrorCount(), IMBEFrame.FEC_PROTECTED_BITS));
     }
 
     /**

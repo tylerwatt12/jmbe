@@ -1,3 +1,4 @@
+1.0.14 2026-07-28 Expose per-frame synthesis outcomes and normalized FEC diagnostics as audio metadata.
 1.0.13 2026-07-11 Fail cleanly when creator inputs are incomplete and guard empty FFT bands.
 
 1.0.12 2026-07-11 Fix cross-frame synthesis state, make resets complete, precompute inverse-DCT coefficients,

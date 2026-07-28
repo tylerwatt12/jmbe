@@ -79,4 +79,9 @@ public class AudioWithMetadata implements IAudioWithMetadata
     {
         return new AudioWithMetadata(audio, Collections.singletonMap(key, value));
     }
+
+    public static AudioWithMetadata create(float[] audio, Map<String,String> metadata)
+    {
+        return new AudioWithMetadata(audio, metadata != null ? Map.copyOf(metadata) : Collections.emptyMap());
+    }
 }

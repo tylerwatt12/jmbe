@@ -21,6 +21,7 @@ package jmbe.codec.imbe;
 
 import jmbe.codec.MBEModelParameters;
 import jmbe.codec.MBESynthesizer;
+import jmbe.codec.VoiceFrameSynthesis;
 
 /**
  * IMBE synthesizer for IMBE audio frames
@@ -55,22 +56,29 @@ class IMBESynthesizer extends MBESynthesizer
      */
     float[] getAudio(IMBEFrame frame)
     {
-        IMBEModelParameters parameters = frame.getModelParameters(mPreviousParameters);
+        return synthesize(frame).audio();
+    }
 
-        float[] audio = null;
+    /**
+     * Synthesizes audio and reports whether the current, previous, or comfort-noise model produced it.
+     */
+    VoiceFrameSynthesis synthesize(IMBEFrame frame)
+    {
+        IMBEModelParameters parameters = frame.getModelParameters(mPreviousParameters);
+        VoiceFrameSynthesis synthesis;
 
         if(parameters.isMaxFrameRepeat() || parameters.requiresMuting())
         {
-            audio = getWhiteNoise();
+            synthesis = new VoiceFrameSynthesis(getWhiteNoise(), VoiceFrameSynthesis.Outcome.CONCEALED);
         }
         else
         {
-            audio = getVoice(parameters);
+            synthesis = new VoiceFrameSynthesis(getVoice(parameters), parameters.getRepeatCount() > 0 ?
+                VoiceFrameSynthesis.Outcome.REPEATED : VoiceFrameSynthesis.Outcome.DECODED);
         }
 
         mPreviousParameters = parameters;
-
-        return audio;
+        return synthesis;
     }
 
 }

@@ -33,6 +33,7 @@ import java.util.Arrays;
  */
 class AMBEFrame
 {
+    static final int FEC_PROTECTED_BITS = 47;
     private static final int[] VECTOR_C0 = {0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 1, 5,
         9, 13, 17, 21};
     private static final int[] VECTOR_C1 = {25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65, 69, 2, 6, 10, 14, 18, 22, 26,
@@ -187,6 +188,15 @@ class AMBEFrame
     public int[] getErrors()
     {
         return mErrors;
+    }
+
+    /**
+     * Detected/corrected error burden for the two protected codewords.  An uncorrectable codeword contributes the
+     * decoder's bounded failure value rather than an exact over-the-air bit count.
+     */
+    public int getFecErrorCount()
+    {
+        return Math.max(0, mErrors[0]) + Math.max(0, mErrors[1]);
     }
 
     /**
