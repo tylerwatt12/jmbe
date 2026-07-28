@@ -35,6 +35,7 @@ public class AMBEAudioCodec implements IAudioCodec
     public static final String CODEC_NAME = "AMBE 3600 x 2450";
     private static final int FRAME_BYTE_LENGTH = 9;
     private AMBESynthesizer mSynthesizer = new AMBESynthesizer();
+    private boolean mVoiceQualityMetadataEnabled;
 
     /**
      * Converts the AMBE frame data into PCM audio samples at 8kHz 16-bit rate.
@@ -61,10 +62,25 @@ public class AMBEAudioCodec implements IAudioCodec
         AMBEFrame frame = new AMBEFrame(frameData);
         VoiceFrameSynthesis synthesis = mSynthesizer.synthesize(frame);
         AudioWithMetadata toneMetadata = frame.getAudioWithMetadata(synthesis.audio());
+
+        if(!mVoiceQualityMetadataEnabled)
+        {
+            return toneMetadata;
+        }
+
         Map<String,String> metadata = FrameQualityMetadata.create(
             toneMetadata.hasMetadata() ? toneMetadata.getMetadata() : Collections.emptyMap(), synthesis,
             frame.getFecErrorCount(), AMBEFrame.FEC_PROTECTED_BITS);
         return AudioWithMetadata.create(synthesis.audio(), metadata);
+    }
+
+    /**
+     * Enables the optional per-frame quality metadata consumed by newer SDRTrunk versions. This is disabled by
+     * default so that older callers continue to receive tone-only metadata.
+     */
+    public void setVoiceQualityMetadataEnabled(boolean enabled)
+    {
+        mVoiceQualityMetadataEnabled = enabled;
     }
 
     /**

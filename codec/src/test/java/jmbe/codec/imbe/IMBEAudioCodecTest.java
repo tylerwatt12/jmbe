@@ -3,6 +3,7 @@ package jmbe.codec.imbe;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -39,9 +40,14 @@ public class IMBEAudioCodecTest
     }
 
     @Test
-    public void exposesBoundedFrameQualityMetadata()
+    public void preservesLegacyMetadataUntilFrameQualityIsEnabled()
     {
-        IAudioWithMetadata result = new IMBEAudioCodec().getAudioWithMetadata(FRAME_1);
+        IMBEAudioCodec codec = new IMBEAudioCodec();
+        IAudioWithMetadata legacyResult = codec.getAudioWithMetadata(FRAME_1);
+        assertNull(legacyResult.getMetadata().get(FrameQualityMetadata.OUTCOME));
+
+        codec.setVoiceQualityMetadataEnabled(true);
+        IAudioWithMetadata result = codec.getAudioWithMetadata(FRAME_1);
 
         assertNotNull(result.getMetadata().get(FrameQualityMetadata.OUTCOME));
         assertTrue(Integer.parseInt(result.getMetadata().get(FrameQualityMetadata.FEC_ERRORS)) >= 0);

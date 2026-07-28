@@ -30,6 +30,7 @@ public class IMBEAudioCodec implements IAudioCodec
     private static final int FRAME_BYTE_LENGTH = 18;
 
     private IMBESynthesizer mSynthesizer;
+    private boolean mVoiceQualityMetadataEnabled;
 
     public IMBEAudioCodec()
     {
@@ -66,8 +67,23 @@ public class IMBEAudioCodec implements IAudioCodec
         validate(frameData);
         IMBEFrame frame = new IMBEFrame(frameData);
         VoiceFrameSynthesis synthesis = mSynthesizer.synthesize(frame);
+
+        if(!mVoiceQualityMetadataEnabled)
+        {
+            return AudioWithMetadata.create(synthesis.audio());
+        }
+
         return AudioWithMetadata.create(synthesis.audio(), FrameQualityMetadata.create(null, synthesis,
             frame.getFecErrorCount(), IMBEFrame.FEC_PROTECTED_BITS));
+    }
+
+    /**
+     * Enables the optional per-frame quality metadata consumed by newer SDRTrunk versions. This is disabled by
+     * default so that older callers continue to receive empty metadata.
+     */
+    public void setVoiceQualityMetadataEnabled(boolean enabled)
+    {
+        mVoiceQualityMetadataEnabled = enabled;
     }
 
     /**
