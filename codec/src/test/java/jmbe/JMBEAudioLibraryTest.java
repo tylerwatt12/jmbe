@@ -7,13 +7,13 @@ import org.junit.Test;
 public class JMBEAudioLibraryTest
 {
     @Test
-    public void reportsVoiceQualityReleaseVersion()
+    public void reportsToneAudioPreferenceReleaseVersion()
     {
         JMBEAudioLibrary library = new JMBEAudioLibrary();
 
         assertEquals(1, library.getMajorVersion());
         assertEquals(0, library.getMinorVersion());
-        assertEquals(14, library.getBuildVersion());
-        assertEquals("JMBE Audio Conversion Library v1.0.14", library.getVersion());
+        assertEquals(15, library.getBuildVersion());
+        assertEquals("JMBE Audio Conversion Library v1.0.15", library.getVersion());
     }
 }

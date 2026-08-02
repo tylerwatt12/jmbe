@@ -35,6 +35,7 @@ public class AMBEAudioCodec implements IAudioCodec
     public static final String CODEC_NAME = "AMBE 3600 x 2450";
     private static final int FRAME_BYTE_LENGTH = 9;
     private AMBESynthesizer mSynthesizer = new AMBESynthesizer();
+    private boolean mToneAudioEnabled = true;
     private boolean mVoiceQualityMetadataEnabled;
 
     /**
@@ -45,7 +46,8 @@ public class AMBEAudioCodec implements IAudioCodec
     public float[] getAudio(byte[] frameData)
     {
         validate(frameData);
-        return mSynthesizer.getAudio(new AMBEFrame(frameData));
+        AMBEFrame frame = new AMBEFrame(frameData);
+        return applyToneAudioPreference(frame, mSynthesizer.getAudio(frame));
     }
 
     /**
@@ -61,7 +63,8 @@ public class AMBEAudioCodec implements IAudioCodec
         validate(frameData);
         AMBEFrame frame = new AMBEFrame(frameData);
         VoiceFrameSynthesis synthesis = mSynthesizer.synthesize(frame);
-        AudioWithMetadata toneMetadata = frame.getAudioWithMetadata(synthesis.audio());
+        float[] audio = applyToneAudioPreference(frame, synthesis.audio());
+        AudioWithMetadata toneMetadata = frame.getAudioWithMetadata(audio);
 
         if(!mVoiceQualityMetadataEnabled)
         {
@@ -71,7 +74,17 @@ public class AMBEAudioCodec implements IAudioCodec
         Map<String,String> metadata = FrameQualityMetadata.create(
             toneMetadata.hasMetadata() ? toneMetadata.getMetadata() : Collections.emptyMap(), synthesis,
             frame.getFecErrorCount(), AMBEFrame.FEC_PROTECTED_BITS);
-        return AudioWithMetadata.create(synthesis.audio(), metadata);
+        return AudioWithMetadata.create(audio, metadata);
+    }
+
+    /**
+     * Controls audio synthesis for valid AMBE tone frames. Tone detection and metadata remain available when tone
+     * audio is disabled; only the decoded PCM samples are replaced with silence. This is enabled by default to
+     * preserve legacy behavior.
+     */
+    public void setToneAudioEnabled(boolean enabled)
+    {
+        mToneAudioEnabled = enabled;
     }
 
     /**
@@ -99,6 +112,16 @@ public class AMBEAudioCodec implements IAudioCodec
     public String getCodecName()
     {
         return CODEC_NAME;
+    }
+
+    private float[] applyToneAudioPreference(AMBEFrame frame, float[] audio)
+    {
+        if(!mToneAudioEnabled && frame.isToneFrame() && frame.getToneParameters().isValidTone())
+        {
+            return new float[audio.length];
+        }
+
+        return audio;
     }
 
     private static void validate(byte[] frameData)
