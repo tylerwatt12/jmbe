@@ -31,6 +31,8 @@ public final class FrameQualityMetadata
     public static final String OUTCOME = "jmbe.frame.outcome";
     public static final String FEC_ERRORS = "jmbe.frame.fec_errors";
     public static final String FEC_PROTECTED_BITS = "jmbe.frame.fec_protected_bits";
+    private static final String AMBE_PROTECTED_BITS = "47";
+    private static final String IMBE_PROTECTED_BITS = "137";
 
     private FrameQualityMetadata()
     {
@@ -42,16 +44,31 @@ public final class FrameQualityMetadata
     public static Map<String,String> create(Map<String,String> metadata, VoiceFrameSynthesis synthesis,
                                             int fecErrors, int fecProtectedBits)
     {
-        LinkedHashMap<String,String> values = new LinkedHashMap<>();
+        String errorCount = Integer.toString(Math.max(0, fecErrors));
+        String protectedBits = protectedBits(fecProtectedBits);
 
-        if(metadata != null)
+        if(metadata == null || metadata.isEmpty())
         {
-            values.putAll(metadata);
+            return Map.of(OUTCOME, synthesis.outcome().name(), FEC_ERRORS, errorCount,
+                FEC_PROTECTED_BITS, protectedBits);
         }
 
+        LinkedHashMap<String,String> values = new LinkedHashMap<>();
+        values.putAll(metadata);
+
         values.put(OUTCOME, synthesis.outcome().name());
-        values.put(FEC_ERRORS, Integer.toString(Math.max(0, fecErrors)));
-        values.put(FEC_PROTECTED_BITS, Integer.toString(Math.max(0, fecProtectedBits)));
+        values.put(FEC_ERRORS, errorCount);
+        values.put(FEC_PROTECTED_BITS, protectedBits);
         return Map.copyOf(values);
+    }
+
+    private static String protectedBits(int count)
+    {
+        return switch(count)
+        {
+            case 47 -> AMBE_PROTECTED_BITS;
+            case 137 -> IMBE_PROTECTED_BITS;
+            default -> Integer.toString(Math.max(0, count));
+        };
     }
 }

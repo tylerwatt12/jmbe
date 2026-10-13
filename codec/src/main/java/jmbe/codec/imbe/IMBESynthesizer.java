@@ -74,7 +74,8 @@ class IMBESynthesizer extends MBESynthesizer
         else
         {
             synthesis = new VoiceFrameSynthesis(getVoice(parameters), parameters.getRepeatCount() > 0 ?
-                VoiceFrameSynthesis.Outcome.REPEATED : VoiceFrameSynthesis.Outcome.DECODED);
+                VoiceFrameSynthesis.Outcome.REPEATED : parameters.isDefaultFrameConcealment() ?
+                VoiceFrameSynthesis.Outcome.CONCEALED : VoiceFrameSynthesis.Outcome.DECODED);
         }
 
         mPreviousParameters = parameters;

@@ -77,12 +77,18 @@ public class IMBECorrectedVoiceFrameFingerprintTest
         byte[] invalid = FingerprintFixtures.imbe(255, 0);
         assertEquals(IMBEFundamentalFrequency.INVALID, new IMBEFrame(invalid).getFundamentalFrequency());
         IMBEAudioCodec receiver = enabled(); receiver.getAudio(SPEECH);
-        for(int count = 1; count <= 4; count++)
+        for(int count = 1; count <= 12; count++)
         {
             IAudioWithMetadata audio = receiver.getAudioWithMetadata(invalid);
-            assertEquals(count < 4 ? "REPEATED" : "CONCEALED", audio.getMetadata().get(FrameQualityMetadata.OUTCOME));
+            boolean concealed = count % 5 == 4 || count % 5 == 0;
+            assertEquals("Invalid frame " + count, concealed ? "CONCEALED" : "REPEATED",
+                audio.getMetadata().get(FrameQualityMetadata.OUTCOME));
+            assertEquals("0", audio.getMetadata().get(FrameQualityMetadata.FEC_ERRORS));
             assertEquals(0L, receiver.getCorrectedVoiceFrameFingerprintV1());
         }
+        IAudioWithMetadata recovered = receiver.getAudioWithMetadata(SPEECH);
+        assertEquals("DECODED", recovered.getMetadata().get(FrameQualityMetadata.OUTCOME));
+        assertNotEquals(0L, receiver.getCorrectedVoiceFrameFingerprintV1());
     }
 
     @Test
@@ -105,6 +111,34 @@ public class IMBECorrectedVoiceFrameFingerprintTest
             }
         }
         assertTrue("Current decoded bits must not become evidence when synthesis conceals them", concealed);
+    }
+
+    @Test
+    public void defaultReplacementAfterCorrectedHighErrorRepeatsCannotPublishSpeechEvidence()
+    {
+        byte[] noisy = SPEECH.clone();
+        for(int bit = 0; bit < 2; bit++) FingerprintFixtures.flipImbe(noisy, bit);
+        for(int block = 1; block < 4; block++)
+            for(int bit = 0; bit < 3; bit++) FingerprintFixtures.flipImbe(noisy, block * 23 + bit);
+        IMBEFrame frame = new IMBEFrame(noisy);
+        assertEquals("Every codeword is within its correction capacity", 11, frame.getFecErrorCount());
+        assertEquals(IMBEFundamentalFrequency.W0, frame.getFundamentalFrequency());
+
+        IMBEAudioCodec receiver = enabled();
+        receiver.getAudio(SPEECH);
+        for(int count = 1; count <= 12; count++)
+        {
+            IAudioWithMetadata audio = receiver.getAudioWithMetadata(noisy);
+            boolean concealed = count % 5 == 4 || count % 5 == 0;
+            assertEquals("Corrected high-error frame " + count, concealed ? "CONCEALED" : "REPEATED",
+                audio.getMetadata().get(FrameQualityMetadata.OUTCOME));
+            assertEquals("11", audio.getMetadata().get(FrameQualityMetadata.FEC_ERRORS));
+            assertEquals("Repeated/default replacement is not current speech evidence at frame " + count,
+                0L, receiver.getCorrectedVoiceFrameFingerprintV1());
+        }
+        receiver.reset();
+        receiver.getAudio(SPEECH);
+        assertEquals(0x3BA4E05ABAAB867AL, receiver.getCorrectedVoiceFrameFingerprintV1());
     }
 
     @Test

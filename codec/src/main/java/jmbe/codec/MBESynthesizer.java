@@ -103,6 +103,7 @@ public abstract class MBESynthesizer
     private float[] mCurrentPhaseO = new float[57];
     private float[] mCurrentPhaseV = new float[57];
     private float[] mPreviousUw = new float[256];
+    private final float[] mUnvoicedSamples = new float[SAMPLES_PER_FRAME];
 
     protected MBESynthesizer()
     {
@@ -317,6 +318,7 @@ public abstract class MBESynthesizer
         mMBENoiseSequenceGenerator.reset();
         Arrays.fill(mNoiseSamples, 0.0f);
         Arrays.fill(mPreviousUw, 0.0f);
+        Arrays.fill(mUnvoicedSamples, 0.0f);
         Arrays.fill(mPreviousPhaseO, 0.0f);
         Arrays.fill(mPreviousPhaseV, 0.0f);
         Arrays.fill(mCurrentPhaseO, 0.0f);
@@ -329,7 +331,8 @@ public abstract class MBESynthesizer
 
         /* Algorithm #126 - use Weighted Overlap Add algorithm to combine previous
          * Uw and the current Uw inverse DFT results to form final unvoiced set */
-        float[] unvoiced = new float[SAMPLES_PER_FRAME];
+        //Every sample is overwritten before use; this private buffer never becomes returned PCM or overlap history.
+        float[] unvoiced = mUnvoicedSamples;
 
         for(int n = 0; n < SAMPLES_PER_FRAME; n++)
         {
@@ -507,8 +510,16 @@ public abstract class MBESynthesizer
         double cosStep = Math.cos(phaseStep);
         double sinStep = Math.sin(phaseStep);
         float scaledAmplitude = 2.0f * amplitude;
+        int sampleLimit = SAMPLES_PER_FRAME;
 
-        for(int n = 0; n < SAMPLES_PER_FRAME; n++)
+        if(windowOffset == 0 && Float.isFinite(scaledAmplitude) && Float.isFinite(initialPhase) &&
+            Float.isFinite(phaseStep) && hasOrdinaryOscillatorTail(voiced))
+        {
+            //The previous-frame window is zero from sample 105 onward. Its oscillator state is local to this call.
+            sampleLimit = 105;
+        }
+
+        for(int n = 0; n < sampleLimit; n++)
         {
             voiced[n] += scaledAmplitude * synthesisWindow(n + windowOffset) * (float)cosPhase;
 
@@ -516,5 +527,19 @@ public abstract class MBESynthesizer
             sinPhase = (sinPhase * cosStep) + (cosPhase * sinStep);
             cosPhase = nextCosPhase;
         }
+    }
+
+    private static boolean hasOrdinaryOscillatorTail(float[] voiced)
+    {
+        for(int n = 105; n < SAMPLES_PER_FRAME; n++)
+        {
+            //A skipped zero addition must not change a non-finite payload or the sign of an existing negative zero.
+            if(!Float.isFinite(voiced[n]) || Float.floatToRawIntBits(voiced[n]) == Integer.MIN_VALUE)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

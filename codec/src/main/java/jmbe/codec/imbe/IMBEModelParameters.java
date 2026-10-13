@@ -30,6 +30,7 @@ class IMBEModelParameters extends MBEModelParameters
 {
     private static final int MAX_HEADROOM_THRESHOLD = 3;
     private int mErrorCountCoset0 = 0;  //E0
+    private boolean mDefaultFrameConcealment;
 
     /**
      * Constructs a default set of model parameters with the voicing
@@ -102,9 +103,13 @@ class IMBEModelParameters extends MBEModelParameters
      */
     public void copy(IMBEModelParameters previous)
     {
+        mDefaultFrameConcealment = false;
+
         /* Avoid continuously repeating speech sounds - reset to defaults */
         if(previous.getRepeatCount() > MAX_HEADROOM_THRESHOLD)
         {
+            //The default model replaces undecodable input even though its repeat count starts at zero.
+            mDefaultFrameConcealment = true;
             setMBEFundamentalFrequency(IMBEFundamentalFrequency.DEFAULT);
             int lplus1 = getL() + 1;
 
@@ -133,6 +138,11 @@ class IMBEModelParameters extends MBEModelParameters
              * is a repeat, in addition to any previously repeated frames */
             setRepeatCount(previous.getRepeatCount() + 1);
         }
+    }
+
+    boolean isDefaultFrameConcealment()
+    {
+        return mDefaultFrameConcealment;
     }
 
     /**
