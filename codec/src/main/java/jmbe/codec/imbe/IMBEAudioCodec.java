@@ -31,6 +31,8 @@ public class IMBEAudioCodec implements IAudioCodec
 
     private IMBESynthesizer mSynthesizer;
     private boolean mVoiceQualityMetadataEnabled;
+    private boolean mCorrectedVoiceFrameFingerprintEnabled;
+    private long mCorrectedVoiceFrameFingerprint;
 
     public IMBEAudioCodec()
     {
@@ -40,6 +42,7 @@ public class IMBEAudioCodec implements IAudioCodec
     @Override
     public void reset()
     {
+        mCorrectedVoiceFrameFingerprint = 0;
         mSynthesizer.reset();
     }
 
@@ -48,9 +51,12 @@ public class IMBEAudioCodec implements IAudioCodec
      */
     public float[] getAudio(byte[] frameData)
     {
+        mCorrectedVoiceFrameFingerprint = 0;
         validate(frameData);
-        IMBEFrame frame = new IMBEFrame(frameData);
-        return mSynthesizer.getAudio(frame);
+        IMBEFrame frame = new IMBEFrame(frameData, mCorrectedVoiceFrameFingerprintEnabled);
+        VoiceFrameSynthesis synthesis = mSynthesizer.synthesize(frame);
+        captureCorrectedVoiceFrameFingerprint(frame, synthesis);
+        return synthesis.audio();
     }
 
     /**
@@ -64,9 +70,11 @@ public class IMBEAudioCodec implements IAudioCodec
     @Override
     public IAudioWithMetadata getAudioWithMetadata(byte[] frameData)
     {
+        mCorrectedVoiceFrameFingerprint = 0;
         validate(frameData);
-        IMBEFrame frame = new IMBEFrame(frameData);
+        IMBEFrame frame = new IMBEFrame(frameData, mCorrectedVoiceFrameFingerprintEnabled);
         VoiceFrameSynthesis synthesis = mSynthesizer.synthesize(frame);
+        captureCorrectedVoiceFrameFingerprint(frame, synthesis);
 
         if(!mVoiceQualityMetadataEnabled)
         {
@@ -84,6 +92,31 @@ public class IMBEAudioCodec implements IAudioCodec
     public void setVoiceQualityMetadataEnabled(boolean enabled)
     {
         mVoiceQualityMetadataEnabled = enabled;
+    }
+
+    /** Enables optional V1 corrected speech evidence. Disabled by default; changing this setting clears evidence. */
+    public void setCorrectedVoiceFrameFingerprintEnabled(boolean enabled)
+    {
+        mCorrectedVoiceFrameFingerprintEnabled = enabled;
+        mCorrectedVoiceFrameFingerprint = 0;
+    }
+
+    /**
+     * Current successfully decoded speech frame's corrected payload evidence, or zero when unavailable.
+     * Failed correction, invalid fundamental frequency, repeated/concealed audio, invalid input, and reset clear it.
+     * Codec instances remain confined to their caller's decoding sequence, just like the audio synthesis state.
+     */
+    public long getCorrectedVoiceFrameFingerprintV1()
+    {
+        return mCorrectedVoiceFrameFingerprint;
+    }
+
+    private void captureCorrectedVoiceFrameFingerprint(IMBEFrame frame, VoiceFrameSynthesis synthesis)
+    {
+        if(mCorrectedVoiceFrameFingerprintEnabled && synthesis.outcome() == VoiceFrameSynthesis.Outcome.DECODED)
+        {
+            mCorrectedVoiceFrameFingerprint = frame.getCorrectedVoiceFrameFingerprintV1();
+        }
     }
 
     /**

@@ -21,6 +21,7 @@ package jmbe.codec.imbe;
 
 import jmbe.binary.BinaryFrame;
 import jmbe.codec.InverseDct;
+import jmbe.codec.CorrectedVoiceFrameFingerprintV1;
 import jmbe.edac.Golay23;
 import jmbe.edac.Hamming15;
 
@@ -57,6 +58,7 @@ class IMBEFrame
     private IMBEFundamentalFrequency mFundamentalFrequency;
     private int[] mErrors = new int[7];
     private int mErrorCountTotal;
+    private long mCorrectedVoiceFrameFingerprint;
 
     /**
      * Constructs an IMBE frame from a binary message containing an 18-byte or
@@ -74,11 +76,16 @@ class IMBEFrame
      */
     IMBEFrame(byte[] data)
     {
-        mFrame = BinaryFrame.fromBytes(data, ByteOrder.LITTLE_ENDIAN);
-        decode();
+        this(data, false);
     }
 
-    private void decode()
+    IMBEFrame(byte[] data, boolean correctedVoiceFrameFingerprintEnabled)
+    {
+        mFrame = BinaryFrame.fromBytes(data, ByteOrder.LITTLE_ENDIAN);
+        decode(correctedVoiceFrameFingerprintEnabled);
+    }
+
+    private void decode(boolean correctedVoiceFrameFingerprintEnabled)
     {
         IMBEInterleave.deinterleave(mFrame);
 
@@ -102,6 +109,39 @@ class IMBEFrame
         mErrorCountTotal += mErrors[6];
 
         mFundamentalFrequency = IMBEFundamentalFrequency.fromValue(mFrame.getInt(VECTOR_B0));
+
+        if(correctedVoiceFrameFingerprintEnabled && mFundamentalFrequency != IMBEFundamentalFrequency.INVALID &&
+            hasCorrectedCodewords())
+        {
+            long hash = CorrectedVoiceFrameFingerprintV1.begin(CorrectedVoiceFrameFingerprintV1.IMBE);
+            for(int offset = 0; offset < 92; offset += 23)
+            {
+                hash = CorrectedVoiceFrameFingerprintV1.appendBits(hash, mFrame, offset, 12);
+            }
+            for(int offset = 92; offset < 137; offset += 15)
+            {
+                hash = CorrectedVoiceFrameFingerprintV1.appendBits(hash, mFrame, offset, 11);
+            }
+            hash = CorrectedVoiceFrameFingerprintV1.appendBits(hash, mFrame, 137, 7);
+            mCorrectedVoiceFrameFingerprint = CorrectedVoiceFrameFingerprintV1.finish(hash);
+        }
+    }
+
+    private boolean hasCorrectedCodewords()
+    {
+        for(int block = 0; block < mErrors.length; block++)
+        {
+            if(mErrors[block] < 0 || mErrors[block] > (block < 4 ? 3 : 1))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    long getCorrectedVoiceFrameFingerprintV1()
+    {
+        return mCorrectedVoiceFrameFingerprint;
     }
 
     public IMBEFundamentalFrequency getFundamentalFrequency()

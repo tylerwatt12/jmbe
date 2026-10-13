@@ -22,6 +22,7 @@ package jmbe.codec.ambe;
 import jmbe.binary.BinaryFrame;
 import jmbe.audio.AudioWithMetadata;
 import jmbe.codec.FrameType;
+import jmbe.codec.CorrectedVoiceFrameFingerprintV1;
 import jmbe.edac.Golay23;
 import jmbe.edac.Golay24;
 
@@ -76,6 +77,7 @@ class AMBEFrame
     private Tone mTone;
     private int mToneAmplitude;
     private int[] mB;
+    private long mCorrectedVoiceFrameFingerprint;
 
     /**
      * Constructs an AMBE voice or tone frame
@@ -84,8 +86,13 @@ class AMBEFrame
      */
     AMBEFrame(byte[] frame)
     {
+        this(frame, false);
+    }
+
+    AMBEFrame(byte[] frame, boolean correctedVoiceFrameFingerprintEnabled)
+    {
         mFrame = BinaryFrame.fromBytes(frame, ByteOrder.LITTLE_ENDIAN);
-        decode();
+        decode(correctedVoiceFrameFingerprintEnabled);
     }
 
     /**
@@ -102,13 +109,13 @@ class AMBEFrame
         }
 
         mFrame = BinaryFrame.fromBytes(data, ByteOrder.LITTLE_ENDIAN);
-        decode();
+        decode(false);
     }
 
     /**
      * Decodes the AMBE frame parameters
      */
-    private void decode()
+    private void decode(boolean correctedVoiceFrameFingerprintEnabled)
     {
         BinaryFrame vectorC0 = getVector(VECTOR_C0);
         BinaryFrame vectorC1 = getVector(VECTOR_C1);
@@ -164,6 +171,24 @@ class AMBEFrame
             mTone = Tone.fromValue(vectorC1.getInt(VECTOR_U1_ID));
             mToneAmplitude = (vectorC0.getInt(VECTOR_U0_AD_HIGH) << 1) + vectorC3.getInt(VECTOR_U3_AD_LOW);
         }
+
+        //Golay24 may leave odd parity after a failed correction even when its reported count is at most three.
+        if(correctedVoiceFrameFingerprintEnabled && mFrameType == FrameType.VOICE &&
+            mErrors[0] >= 0 && mErrors[0] <= 3 && mErrors[1] >= 0 && mErrors[1] <= 3 &&
+            (vectorC0.cardinality() & 1) == 0)
+        {
+            long hash = CorrectedVoiceFrameFingerprintV1.begin(CorrectedVoiceFrameFingerprintV1.AMBE);
+            hash = CorrectedVoiceFrameFingerprintV1.appendBits(hash, vectorC0, 0, 12);
+            hash = CorrectedVoiceFrameFingerprintV1.appendBits(hash, vectorC1, 0, 12);
+            hash = CorrectedVoiceFrameFingerprintV1.appendBits(hash, vectorC2, 0, 11);
+            hash = CorrectedVoiceFrameFingerprintV1.appendBits(hash, vectorC3, 0, 14);
+            mCorrectedVoiceFrameFingerprint = CorrectedVoiceFrameFingerprintV1.finish(hash);
+        }
+    }
+
+    long getCorrectedVoiceFrameFingerprintV1()
+    {
+        return mCorrectedVoiceFrameFingerprint;
     }
 
     /**

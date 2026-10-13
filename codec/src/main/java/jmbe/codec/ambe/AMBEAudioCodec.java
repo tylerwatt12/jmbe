@@ -37,6 +37,8 @@ public class AMBEAudioCodec implements IAudioCodec
     private AMBESynthesizer mSynthesizer = new AMBESynthesizer();
     private boolean mToneAudioEnabled = true;
     private boolean mVoiceQualityMetadataEnabled;
+    private boolean mCorrectedVoiceFrameFingerprintEnabled;
+    private long mCorrectedVoiceFrameFingerprint;
 
     /**
      * Converts the AMBE frame data into PCM audio samples at 8kHz 16-bit rate.
@@ -45,9 +47,12 @@ public class AMBEAudioCodec implements IAudioCodec
      */
     public float[] getAudio(byte[] frameData)
     {
+        mCorrectedVoiceFrameFingerprint = 0;
         validate(frameData);
-        AMBEFrame frame = new AMBEFrame(frameData);
-        return applyToneAudioPreference(frame, mSynthesizer.getAudio(frame));
+        AMBEFrame frame = new AMBEFrame(frameData, mCorrectedVoiceFrameFingerprintEnabled);
+        VoiceFrameSynthesis synthesis = mSynthesizer.synthesize(frame);
+        captureCorrectedVoiceFrameFingerprint(frame, synthesis);
+        return applyToneAudioPreference(frame, synthesis.audio());
     }
 
     /**
@@ -60,9 +65,11 @@ public class AMBEAudioCodec implements IAudioCodec
     @Override
     public IAudioWithMetadata getAudioWithMetadata(byte[] frameData)
     {
+        mCorrectedVoiceFrameFingerprint = 0;
         validate(frameData);
-        AMBEFrame frame = new AMBEFrame(frameData);
+        AMBEFrame frame = new AMBEFrame(frameData, mCorrectedVoiceFrameFingerprintEnabled);
         VoiceFrameSynthesis synthesis = mSynthesizer.synthesize(frame);
+        captureCorrectedVoiceFrameFingerprint(frame, synthesis);
         float[] audio = applyToneAudioPreference(frame, synthesis.audio());
         AudioWithMetadata toneMetadata = frame.getAudioWithMetadata(audio);
 
@@ -102,7 +109,33 @@ public class AMBEAudioCodec implements IAudioCodec
     @Override
     public void reset()
     {
+        mCorrectedVoiceFrameFingerprint = 0;
         mSynthesizer.reset();
+    }
+
+    /** Enables optional V1 corrected speech evidence. Disabled by default; changing this setting clears evidence. */
+    public void setCorrectedVoiceFrameFingerprintEnabled(boolean enabled)
+    {
+        mCorrectedVoiceFrameFingerprintEnabled = enabled;
+        mCorrectedVoiceFrameFingerprint = 0;
+    }
+
+    /**
+     * Current successfully decoded speech frame's corrected payload evidence, or zero when unavailable.
+     * Tone, silence, failed correction, repeated/concealed audio, invalid input, and reset never retain evidence.
+     * Codec instances remain confined to their caller's decoding sequence, just like the audio synthesis state.
+     */
+    public long getCorrectedVoiceFrameFingerprintV1()
+    {
+        return mCorrectedVoiceFrameFingerprint;
+    }
+
+    private void captureCorrectedVoiceFrameFingerprint(AMBEFrame frame, VoiceFrameSynthesis synthesis)
+    {
+        if(mCorrectedVoiceFrameFingerprintEnabled && synthesis.outcome() == VoiceFrameSynthesis.Outcome.DECODED)
+        {
+            mCorrectedVoiceFrameFingerprint = frame.getCorrectedVoiceFrameFingerprintV1();
+        }
     }
 
     /**
