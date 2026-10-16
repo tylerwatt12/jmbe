@@ -195,7 +195,8 @@ public class Creator
     }
 
     /**
-     * Discovers the LICENSE file from the source code tree and copies it to the output directory
+     * Copies the source license and available model notices into the generated library.
+     * Standard source archives do not contain model notices; optional libraries require them during verification.
      *
      * @param downloadDirectory where source code exists
      * @throws IOException if there is an error
@@ -209,6 +210,12 @@ public class Creator
         {
             Path toLicense = getOutputDirectory(downloadDirectory).resolve(fileName);
             Files.copy(license, toLicense, StandardCopyOption.REPLACE_EXISTING);
+            Path modelNotices = getFile(downloadDirectory, "MODEL_NOTICES.md");
+            if(modelNotices != null)
+            {
+                Files.copy(modelNotices, getOutputDirectory(downloadDirectory).resolve("MODEL_NOTICES.md"),
+                    StandardCopyOption.REPLACE_EXISTING);
+            }
             return;
         }
 
@@ -551,9 +558,10 @@ public class Creator
             if(expectedVersion.toString().contains("-16khz.") &&
                 (!expectedVersion.toString().equals(jarFile.getManifest().getMainAttributes().getValue("Implementation-Version")) ||
                     jarFile.getJarEntry("jmbe/audio/AudioOutputProcessor.class") == null ||
-                    jarFile.getJarEntry("jmbe/audio/enhance/voice-model.zip") == null))
+                    jarFile.getJarEntry("jmbe/audio/enhance/voice-model.zip") == null ||
+                    jarFile.getJarEntry("MODEL_NOTICES.md") == null))
             {
-                throw new IOException("Created optional library is missing its flavor, processor or model");
+                throw new IOException("Created optional library is missing its flavor, processor, model or notices");
             }
 
             JarEntry libraryClass = jarFile.getJarEntry("jmbe/JMBEAudioLibrary.class");

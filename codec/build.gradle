@@ -29,6 +29,7 @@ jar {
                 'Site': 'https://github.com/tylerwatt12/jmbe')
     }
     from rootProject.file('LICENSE')
+    from rootProject.file('MODEL_NOTICES.md')
 
     doLast {
         if(archiveFile.get().asFile.exists())

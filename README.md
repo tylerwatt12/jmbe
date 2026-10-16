@@ -44,6 +44,9 @@ replace `codec/src/main/resources/jmbe/audio/enhance/voice-model.zip`, update th
 a new optional flavor. The exporter requires Python/PyTorch only at build time. Evaluate replacement weights before
 release; changing weights does not change the model architecture or promise improved speech intelligibility.
 
+See [Model sources and attribution](MODEL_NOTICES.md) for the recorded public speech/noise datasets, source-data
+licenses and provenance limits of the bundled weights.
+
 ## Fork Notes
 
 This fork is maintained for use with [sdrtrunk-vce](https://github.com/tylerwatt12/sdrtrunk) and

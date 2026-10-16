@@ -37,6 +37,9 @@ public class CreatorTest
         assertThrows(IOException.class, () -> Creator.verifyLibrary(library, Version.fromString("1.0.17-16khz.1")));
         Files.write(model, new byte[]{1});
         Creator.createJar(content, library);
+        assertThrows(IOException.class, () -> Creator.verifyLibrary(library, Version.fromString("1.0.17-16khz.1")));
+        Files.writeString(content.resolve("MODEL_NOTICES.md"), "Model source attribution");
+        Creator.createJar(content, library);
         Creator.verifyLibrary(library, Version.fromString("1.0.17-16khz.1"));
         try(var jar = new java.util.jar.JarFile(library.toFile()))
         {
@@ -62,14 +65,31 @@ public class CreatorTest
             zip.putNextEntry(new ZipEntry("jmbe/codec/src/main/resources/jmbe/audio/enhance/voice-model.zip"));
             zip.write(model);
             zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("jmbe/LICENSE"));
+            zip.write("Source code license".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("jmbe/MODEL_NOTICES.md"));
+            zip.write("Model source attribution".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            zip.closeEntry();
         }
         Creator.process(archive);
+        Creator.copyLicenseFile(directory);
         Path output = Creator.getOutputDirectory(directory);
         org.junit.Assert.assertArrayEquals(model, Files.readAllBytes(output.resolve("jmbe/audio/enhance/voice-model.zip")));
         assertTrue(Files.exists(output.resolve("jmbe/Minimal.class")));
         assertFalse(Files.exists(output.resolve("jmbe/iface/Shared.class")));
         byte[] bytecode = Files.readAllBytes(output.resolve("jmbe/Minimal.class"));
         assertEquals(61, ((bytecode[6] & 255) << 8) | (bytecode[7] & 255));
+        Creator.createJarMetadata(output, "1.0.17-16khz.1");
+        Path library = directory.resolve("packaged.jar");
+        Creator.createJar(output, library);
+        try(var jar = new java.util.jar.JarFile(library.toFile()))
+        {
+            assertEquals("Source code license", new String(jar.getInputStream(jar.getJarEntry("LICENSE")).readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8));
+            assertEquals("Model source attribution", new String(jar.getInputStream(jar.getJarEntry("MODEL_NOTICES.md")).readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8));
+        }
     }
 
     @Test
