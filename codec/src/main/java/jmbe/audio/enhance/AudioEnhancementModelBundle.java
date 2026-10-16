@@ -11,8 +11,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
@@ -37,45 +35,14 @@ public final class AudioEnhancementModelBundle
     private static final ObjectMapper MAPPER = new ObjectMapper(JsonFactory.builder()
         .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build())
         .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
-    private final String mModelId;
-    private final String mSha256;
-    private final Metadata mMetadata;
+    private final int mMaximumInputSamples;
     private final Map<Codec, WholeCallEnhancer.Model> mModels;
 
-    public record CodecMetadata(float inputGain, String enhancerCheckpointSha256, String bweCheckpointSha256) {}
-
-    public record Metadata(int schemaVersion, String architecture, int inputSampleRate, int outputSampleRate,
-                           int maximumInputSamples, Map<Codec, CodecMetadata> codecs, Map<String, String> sourceHashes)
-    {
-        public Metadata
-        {
-            codecs = Map.copyOf(codecs);
-            sourceHashes = Map.copyOf(sourceHashes);
-        }
-    }
-
-    private AudioEnhancementModelBundle(String id, String sha256, Metadata metadata,
+    private AudioEnhancementModelBundle(int maximumInputSamples,
                                        Map<Codec, WholeCallEnhancer.Model> models)
     {
-        mModelId = id;
-        mSha256 = sha256;
-        mMetadata = metadata;
+        mMaximumInputSamples = maximumInputSamples;
         mModels = Map.copyOf(models);
-    }
-
-    public static AudioEnhancementModelBundle load(Path path) throws IOException
-    {
-        long size = Files.size(path);
-        if(size < 1 || size > MAX_BUNDLE_BYTES)
-        {
-            throw new IOException("Model bundle exceeds the permitted size");
-        }
-        // A bounded stream also covers a file replaced or extended after the size check.
-        try(var stream = Files.newInputStream(path))
-        {
-            byte[] bytes = stream.readNBytes(MAX_BUNDLE_BYTES + 1);
-            return load(bytes);
-        }
     }
 
     public static AudioEnhancementModelBundle load(byte[] bytes) throws IOException
@@ -84,7 +51,7 @@ public final class AudioEnhancementModelBundle
         {
             throw new IOException("Model bundle exceeds the permitted size");
         }
-        // Keep the hash and parsed data tied to a snapshot even if the caller mutates its buffer.
+        // Parse a snapshot even if the caller mutates its buffer.
         bytes = bytes.clone();
         Map<String, byte[]> entries = readZip(bytes);
         byte[] manifestBytes = entries.remove("manifest.json");
@@ -110,7 +77,6 @@ public final class AudioEnhancementModelBundle
         {
             throw new IOException("Invalid model input limit");
         }
-        Map<String, String> sources = new LinkedHashMap<>();
         JsonNode sourceNodes = root.get("source_sha256");
         requireObject(sourceNodes, "source hashes");
         if(sourceNodes.size() > 8)
@@ -125,7 +91,7 @@ public final class AudioEnhancementModelBundle
             {
                 throw new IOException("Invalid source identifier");
             }
-            sources.put(field.getKey(), checkedSha(field.getValue().asText()));
+            checkedSha(field.getValue().asText());
         }
         JsonNode codecs = root.get("codecs");
         requireObject(codecs, "codecs");
@@ -134,7 +100,6 @@ public final class AudioEnhancementModelBundle
             throw new IOException("Invalid codec count");
         }
         Map<Codec, WholeCallEnhancer.Model> models = new EnumMap<>(Codec.class);
-        Map<Codec, CodecMetadata> codecMetadata = new EnumMap<>(Codec.class);
         var fields = codecs.fields();
         while(fields.hasNext())
         {
@@ -160,8 +125,8 @@ public final class AudioEnhancementModelBundle
             {
                 throw new IOException("Invalid input calibration gain");
             }
-            String enhancerSha = checkedSha(text(node, "enhancer_checkpoint_sha256"));
-            String bweSha = checkedSha(text(node, "bwe_checkpoint_sha256"));
+            checkedSha(text(node, "enhancer_checkpoint_sha256"));
+            checkedSha(text(node, "bwe_checkpoint_sha256"));
             String entry = text(node, "weights_entry");
             if(!entry.equals("weights/" + codec.name().toLowerCase(java.util.Locale.ROOT) + ".f32le"))
             {
@@ -179,19 +144,15 @@ public final class AudioEnhancementModelBundle
             Map<String, float[]> tensors = readTensors(node.get("tensors"), payload);
             WholeCallEnhancer.Model model = new WholeCallEnhancer.Model(gain, tensors);
             models.put(codec, model);
-            codecMetadata.put(codec, new CodecMetadata(gain, enhancerSha, bweSha));
         }
         if(!entries.isEmpty())
         {
             throw new IOException("Undeclared files in model bundle");
         }
-        return new AudioEnhancementModelBundle(id, sha256(bytes),
-            new Metadata(1, ARCHITECTURE, 8000, 16000, cap, codecMetadata, sources), models);
+        return new AudioEnhancementModelBundle(cap, models);
     }
 
-    public String modelId() { return mModelId; }
-    public String sha256() { return mSha256; }
-    public Metadata metadata() { return mMetadata; }
+    public int maximumInputSamples() { return mMaximumInputSamples; }
     public boolean supports(Codec codec) { return codec != null && mModels.containsKey(codec); }
     /**
      * Returns decoder-level 16 kHz mono samples. No delay removal, crop, clipping or presentation gain is applied.
@@ -205,7 +166,7 @@ public final class AudioEnhancementModelBundle
         {
             throw new IllegalArgumentException("Codec is not supported by this model");
         }
-        if(raw8 == null || raw8.length == 0 || raw8.length > mMetadata.maximumInputSamples())
+        if(raw8 == null || raw8.length == 0 || raw8.length > mMaximumInputSamples)
         {
             throw new IllegalArgumentException("Audio length is outside the model limit");
         }

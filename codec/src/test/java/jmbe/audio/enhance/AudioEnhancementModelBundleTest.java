@@ -17,11 +17,10 @@ public class AudioEnhancementModelBundleTest
     @Test public void validatesAndPreservesSilenceAndCallLength() throws Exception
     {
         AudioEnhancementModelBundle bundle = AudioEnhancementModelBundle.load(ModelBundleFixtures.bundle("fixture-v1"));
-        assertEquals("fixture-v1", bundle.modelId());
+        assertEquals(120 * 8000, bundle.maximumInputSamples());
         assertTrue(bundle.supports(Codec.IMBE));
         assertTrue(bundle.supports(Codec.AMBE_PLUS_2));
         assertFalse(bundle.supports(null));
-        assertThrows(UnsupportedOperationException.class, () -> bundle.metadata().codecs().clear());
         for(int size: new int[]{1,127,128,129,513})
         {
             float[] source = new float[size];

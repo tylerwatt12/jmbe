@@ -47,7 +47,7 @@ public final class AudioOutputProcessor
             return output(samples.clone(), sampleRate);
         }
         AudioEnhancementModelBundle model = model();
-        if(samples.length > model.metadata().maximumInputSamples() || !model.supports(family))
+        if(samples.length > model.maximumInputSamples() || !model.supports(family))
             return output(samples.clone(), sampleRate);
         float[] result = model.enhance(samples, family);
         if(result.length != samples.length * 2)
