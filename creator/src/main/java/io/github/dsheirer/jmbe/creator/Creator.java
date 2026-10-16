@@ -42,6 +42,8 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -58,7 +60,8 @@ public class Creator
     private static final Logger mLog = LoggerFactory.getLogger(Creator.class);
 
     private static final String GITHUB_JMBE_RELEASES_URL = "https://api.github.com/repos/tylerwatt12/jmbe/releases";
-    private static final String JAVA_RELEASE = "25";
+    private static final String JAVA_RELEASE = "17";
+    private static final String DEFAULT_RELEASE_TAG = "v1.0.17-16khz.1";
 
     /**
      * Exit code to indicate that the process completed successfully
@@ -101,6 +104,7 @@ public class Creator
     {
         Path downloadDirectory = downloadFile.toAbsolutePath().normalize().getParent();
         List<Path> toCompile = new ArrayList<>();
+        Map<Path,Path> resources = new LinkedHashMap<>();
 
         System.out.println("Unzipping: Source Code");
         try(ZipFile zf = new ZipFile(downloadFile.toFile()))
@@ -134,6 +138,15 @@ public class Creator
                     {
                         toCompile.add(target);
                     }
+                    String marker = "/codec/src/main/resources/";
+                    int markerIndex = entry.getName().indexOf(marker);
+                    if(markerIndex >= 0)
+                    {
+                        Path resource = getOutputDirectory(downloadDirectory)
+                            .resolve(entry.getName().substring(markerIndex + marker.length())).normalize();
+                        if(!resource.startsWith(getOutputDirectory(downloadDirectory)) || resources.put(resource, target) != null)
+                            throw new IOException("Invalid or duplicate codec resource");
+                    }
                 }
             }
         }
@@ -144,6 +157,11 @@ public class Creator
         }
 
         compile(toCompile, getOptions(downloadDirectory));
+        for(var resource: resources.entrySet())
+        {
+            Files.createDirectories(resource.getKey().getParent());
+            Files.copy(resource.getValue(), resource.getKey(), StandardCopyOption.REPLACE_EXISTING);
+        }
         System.out.println("Deleting: Compiled Interfaces");
         deleteInterfaceClasses(getOutputDirectory(downloadDirectory));
     }
@@ -166,7 +184,10 @@ public class Creator
         StringBuilder sb = new StringBuilder();
         sb.append("Manifest-Version: 1.0\r\n");
         sb.append("Implementation-Title: jmbe\r\n");
-        sb.append("Version: ").append(version).append("\r\n");
+        Version parsed = Version.fromString(version);
+        if(parsed == null) throw new IOException("Invalid library version");
+        sb.append("Version: ").append(parsed.legacyVersion()).append("\r\n");
+        sb.append("Implementation-Version: ").append(parsed).append("\r\n");
         sb.append("Site: https://github.com/tylerwatt12/jmbe\r\n");
 
         Path manifest = metaDirectory.resolve("MANIFEST.MF");
@@ -407,7 +428,7 @@ public class Creator
     }
 
     /**
-     * Creates a JMBE library from one exact release, or the latest release when no tag is supplied.
+     * Creates a JMBE library from one exact release, or this optional Creator build's pinned release when no tag is supplied.
      */
     public static int createLibrary(String libraryPath, String releaseTag)
     {
@@ -492,7 +513,7 @@ public class Creator
     {
         if(releaseTag == null)
         {
-            return GitHub.getLatestRelease(GITHUB_JMBE_RELEASES_URL);
+            releaseTag = DEFAULT_RELEASE_TAG;
         }
 
         Version version = Version.fromString(releaseTag);
@@ -521,10 +542,18 @@ public class Creator
 
             String actualVersion = jarFile.getManifest().getMainAttributes().getValue("Version");
 
-            if(!expectedVersion.toString().equals(actualVersion))
+            if(!expectedVersion.legacyVersion().equals(actualVersion))
             {
                 throw new IOException("Created JMBE version " + actualVersion + " does not match requested version " +
                     expectedVersion);
+            }
+
+            if(expectedVersion.toString().contains("-16khz.") &&
+                (!expectedVersion.toString().equals(jarFile.getManifest().getMainAttributes().getValue("Implementation-Version")) ||
+                    jarFile.getJarEntry("jmbe/audio/AudioOutputProcessor.class") == null ||
+                    jarFile.getJarEntry("jmbe/audio/enhance/voice-model.zip") == null))
+            {
+                throw new IOException("Created optional library is missing its flavor, processor or model");
             }
 
             JarEntry libraryClass = jarFile.getJarEntry("jmbe/JMBEAudioLibrary.class");

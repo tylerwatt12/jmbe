@@ -1,3 +1,4 @@
+1.0.17-16khz.1 2026-10-16 Optional branch of 1.0.17: bundle the existing V4 completed-call model behind a generic samples/sample-rate provider. Preserve legacy 8 kHz frame APIs, omit continuous AGC and processing controls, and keep standard 1.0.17 as the public default. Library/API target Java 17; the optional Java 25 Creator pins its exact variant release and includes model resources.
 1.0.17 2026-10-12 Reduce synthesis and metadata allocation, skip unused finite oscillator work, and classify IMBE default replacement as concealment without changing PCM.
 1.0.16 2026-10-12 Add opt-in corrected speech-frame fingerprints for AMBE and IMBE without changing audio or metadata.
 1.0.15 2026-08-02 Add opt-in AMBE tone-audio muting while preserving tone detection and metadata.

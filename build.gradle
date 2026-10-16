@@ -4,17 +4,24 @@ apply plugin: 'idea'
 description = 'JMBE Audio Library build script'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+// The library/API remain usable by Java 17 callers. Creator retains its Java 25 runtime.
+configure([project(':api'), project(':codec')]) {
+    tasks.withType(JavaCompile).configureEach {
+        options.release.set(17)
+    }
 }
 
 subprojects {
     apply plugin: 'java'
-    version = '1.0.17'
+    version = '1.0.17-16khz.1'
 
     java {
-        sourceCompatibility = JavaVersion.VERSION_25
-        targetCompatibility = JavaVersion.VERSION_25
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 

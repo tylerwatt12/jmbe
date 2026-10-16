@@ -2,6 +2,48 @@ Copyright (C) 2015-2026 Dennis Sheirer
 
 # jmbe - Java Multi-Band Excitation library
 
+## Optional 16 kHz branch
+
+The standard public default remains **JMBE 1.0.17**, with 8 kHz audio. This branch builds the deliberately selected
+**1.0.17-16khz.1** variant. Its bundled V4 model processes completed IMBE and AMBE+2 calls automatically; there are
+no enhancement settings, model selector or continuous automatic gain control. A fixed attenuation is applied only
+when an enhanced completed call would exceed a 0.95 peak. There is no gain boost or gain movement within a call.
+
+Use this optional build with a host that supports the generic completed-call output provider below. Old hosts remain
+safe: the existing `getAudio` and `getAudioWithMetadata` frame methods still return 160 samples at **8 kHz** and never
+run the model. A new host must use the returned sample rate for playback, recordings and uploads. Returning 16 kHz
+samples through an old 8 kHz frame method would change duration and pitch, so this branch does not do that.
+
+This branch's release artifacts are named `jmbe-1.0.17-16khz.1.jar` and corresponding optional Creators. The legacy
+numeric interface and manifest `Version` stay **1.0.17**; `Implementation-Version` identifies the optional flavor.
+Optional releases are prereleases with `latest=false`, leaving the standard release as the default. Download the
+optional release deliberately. Its Creator is pinned to that exact optional source tag; the standard Creator is
+unchanged. Library and API bytecode target Java 17, while the Creator runs on bundled Java 25.
+
+### Completed-call audio contract
+
+On a completed-call worker, optionally discover `JMBEAudioLibrary.getAudioOutputProcessor()` by reflection. If absent,
+use the original 8 kHz samples. Its provider has:
+
+```java
+public Map<String,Object> process(float[] samples, int sampleRate, String codec)
+// result: "samples" -> float[], "sample_rate" -> Integer
+```
+
+Pass the complete native call, `8000`, and `"IMBE"` or `"AMBE_PLUS_2"`. Successful model processing returns exactly
+2 × the samples at `16000`, preserving duration. Other codecs (`"NONE"` for analog), other input rates, empty calls
+and calls longer than 120 seconds pass through with their original rate. The provider clones passed-through audio,
+does not modify its input and rejects inputs exceeding 16,777,216 samples or containing non-finite/out-of-bound PCM.
+If processing fails, the host should retain the original samples and rate. Never invoke this whole-call model on a
+real-time decoder callback. Do not infer the output rate from a version number, artifact name or sample count.
+
+The V4 bundle is data-only, loaded lazily, with validated shapes, bounds, constants and payload hashes. It is included
+inside the JAR; no external model path, model-management interface, native runtime or Python is required by the host.
+To update weights, use `tools/export_audio_enhancement_model.py` with trusted checkpoints for the fixed architecture,
+replace `codec/src/main/resources/jmbe/audio/enhance/voice-model.zip`, update the expected model hash test, and release
+a new optional flavor. The exporter requires Python/PyTorch only at build time. Evaluate replacement weights before
+release; changing weights does not change the model architecture or promise improved speech intelligibility.
+
 ## Fork Notes
 
 This fork is maintained for use with [sdrtrunk-vce](https://github.com/tylerwatt12/sdrtrunk) and
@@ -12,7 +54,7 @@ focuses on practical codec maintenance:
 * **Removed unused code** — debug wave-generation utilities, the unused `ambeplus` package, and
   internal tables and classes not reachable from the sdrtrunk API. The old code is still in the repo
   history, just not in the production version.
-* **Build compatibility** — updated for current Gradle and JDK toolchains; the library and creator target Java 25
+* **Build compatibility** — updated for current Gradle and JDK toolchains; the library targets Java 17 and the creator uses Java 25
 * **Reduced allocation pressure** — instance-field reuse for hot-path buffers (noise samples, phase
   arrays, DFT bin scalars); eliminated per-frame array allocations in spectral amplitude interpolation,
   enum lookups, and overlap-add synthesis

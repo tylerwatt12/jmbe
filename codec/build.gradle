@@ -11,6 +11,7 @@ dependencies {
     implementation 'org.slf4j:slf4j-simple:1.7.25'
     implementation 'com.github.wendykierp:JTransforms:3.1'
     implementation 'pl.edu.icm:JLargeArrays:1.6'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.20.1'
     implementation project(':api')
     testImplementation 'junit:junit:4.13.2'
 }
@@ -22,7 +23,9 @@ base {
 jar {
     manifest {
         attributes('Implementation-Title': rootProject.name,
-                'Version': project.version,
+                'Version': '1.0.17',
+                'Implementation-Version': project.version,
+                'Audio-Output-Flavor': '16khz',
                 'Site': 'https://github.com/tylerwatt12/jmbe')
     }
     from rootProject.file('LICENSE')

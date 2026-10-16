@@ -1,5 +1,6 @@
 package io.github.dsheirer.jmbe.creator;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
@@ -19,6 +20,57 @@ public class CreatorTest
 {
     @Rule
     public TemporaryFolder mTemporaryFolder = new TemporaryFolder();
+
+    @Test
+    public void optionalLibraryKeepsLegacyVersionAndRequiresItsModel() throws Exception
+    {
+        Path content = mTemporaryFolder.newFolder("optional").toPath();
+        Path entryPoint = content.resolve("jmbe/JMBEAudioLibrary.class");
+        Path processor = content.resolve("jmbe/audio/AudioOutputProcessor.class");
+        Path model = content.resolve("jmbe/audio/enhance/voice-model.zip");
+        Files.createDirectories(model.getParent());
+        Files.write(entryPoint, new byte[]{0});
+        Files.write(processor, new byte[]{0});
+        Creator.createJarMetadata(content, "1.0.17-16khz.1");
+        Path library = mTemporaryFolder.getRoot().toPath().resolve("jmbe-1.0.17-16khz.1.jar");
+        Creator.createJar(content, library);
+        assertThrows(IOException.class, () -> Creator.verifyLibrary(library, Version.fromString("1.0.17-16khz.1")));
+        Files.write(model, new byte[]{1});
+        Creator.createJar(content, library);
+        Creator.verifyLibrary(library, Version.fromString("1.0.17-16khz.1"));
+        try(var jar = new java.util.jar.JarFile(library.toFile()))
+        {
+            assertEquals("1.0.17", jar.getManifest().getMainAttributes().getValue("Version"));
+            assertEquals("1.0.17-16khz.1", jar.getManifest().getMainAttributes().getValue("Implementation-Version"));
+        }
+    }
+
+    @Test
+    public void processPackagesCodecResourcesAndStillRemovesSharedInterfaces() throws Exception
+    {
+        Path directory = mTemporaryFolder.newFolder("resources").toPath();
+        Path archive = directory.resolve("source.zip");
+        byte[] model = {2, 4, 6};
+        try(ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archive)))
+        {
+            zip.putNextEntry(new ZipEntry("jmbe/codec/src/main/java/jmbe/Minimal.java"));
+            zip.write("package jmbe; public class Minimal {}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("jmbe/api/src/main/java/jmbe/iface/Shared.java"));
+            zip.write("package jmbe.iface; public interface Shared {}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("jmbe/codec/src/main/resources/jmbe/audio/enhance/voice-model.zip"));
+            zip.write(model);
+            zip.closeEntry();
+        }
+        Creator.process(archive);
+        Path output = Creator.getOutputDirectory(directory);
+        org.junit.Assert.assertArrayEquals(model, Files.readAllBytes(output.resolve("jmbe/audio/enhance/voice-model.zip")));
+        assertTrue(Files.exists(output.resolve("jmbe/Minimal.class")));
+        assertFalse(Files.exists(output.resolve("jmbe/iface/Shared.class")));
+        byte[] bytecode = Files.readAllBytes(output.resolve("jmbe/Minimal.class"));
+        assertEquals(61, ((bytecode[6] & 255) << 8) | (bytecode[7] & 255));
+    }
 
     @Test
     public void compilationFailureStopsCreation() throws Exception

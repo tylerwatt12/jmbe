@@ -18,6 +18,18 @@ public class VersionTest
     }
 
     @Test
+    public void supportsOnlyExplicitAudioOutputFlavorTags()
+    {
+        Version optional = Version.fromString("v1.0.17-16khz.1");
+        assertEquals("1.0.17-16khz.1", optional.toString());
+        assertEquals("1.0.17", optional.legacyVersion());
+        assertTrue(optional.compareTo(Version.fromString("1.0.17")) < 0);
+        assertTrue(optional.compareTo(Version.fromString("1.0.17-16khz.2")) < 0);
+        assertNull(Version.fromString("1.0.17-16khz.x"));
+        assertNull(Version.fromString("1.0.17-16khz.1/other"));
+    }
+
+    @Test
     public void rejectsMalformedSeparatorsAndPatches()
     {
         assertNull(Version.fromString("v1x0x12"));

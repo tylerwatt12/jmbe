@@ -28,12 +28,13 @@ import java.util.Objects;
  */
 public class Version implements Comparable<Version>
 {
-    public static final Pattern VERSION_PATTERN = Pattern.compile("v?(\\d{1,5})\\.(\\d{1,5})\\.(\\d{1,5})([A-Za-z]?)");
+    public static final Pattern VERSION_PATTERN = Pattern.compile("v?(\\d{1,5})\\.(\\d{1,5})\\.(\\d{1,5})([A-Za-z]?)(?:-16khz\\.(\\d{1,5}))?");
 
     private Integer mMajor;
     private Integer mMinor;
     private Integer mRelease;
     private Character mPatch;
+    private Integer mAudioOutputRevision;
 
     /**
      * Constructs an instance
@@ -69,7 +70,10 @@ public class Version implements Comparable<Version>
                 String rawPatch = m.group(4);
                 Character patch = rawPatch.isEmpty() ? null : rawPatch.charAt(0);
 
-                return new Version(major, minor, release, patch);
+                Version parsed = new Version(major, minor, release, patch);
+                String revision = m.group(5);
+                if(revision != null) parsed.mAudioOutputRevision = Integer.parseInt(revision);
+                return parsed;
             }
         }
 
@@ -127,7 +131,14 @@ public class Version implements Comparable<Version>
             sb.append(mPatch);
         }
 
+        if(mAudioOutputRevision != null) sb.append("-16khz.").append(mAudioOutputRevision);
         return sb.toString();
+    }
+
+    /** Numeric legacy manifest version, without the optional audio-output flavor. */
+    public String legacyVersion()
+    {
+        return toString().split("-", 2)[0];
     }
 
     @Override
@@ -162,6 +173,13 @@ public class Version implements Comparable<Version>
             }
         }
 
+        if(comparison == 0)
+        {
+            if(mAudioOutputRevision != null && other.mAudioOutputRevision != null)
+                comparison = Integer.compare(mAudioOutputRevision, other.mAudioOutputRevision);
+            else if(mAudioOutputRevision != null) comparison = -1;
+            else if(other.mAudioOutputRevision != null) comparison = 1;
+        }
         return comparison;
     }
 
@@ -174,6 +192,6 @@ public class Version implements Comparable<Version>
     @Override
     public int hashCode()
     {
-        return Objects.hash(mMajor, mMinor, mRelease, mPatch);
+        return Objects.hash(mMajor, mMinor, mRelease, mPatch, mAudioOutputRevision);
     }
 }

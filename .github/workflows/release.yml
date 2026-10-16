@@ -1,9 +1,9 @@
-name: Release JMBE Creator
+name: Release optional 16 kHz JMBE
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*-16khz.*'
 
 permissions:
   contents: write
@@ -23,6 +23,12 @@ jobs:
           java-version: '25'
           cache: gradle
 
+      - name: Require this branch's exact optional release
+        run: test "$GITHUB_REF_NAME" = "v1.0.17-16khz.1"
+
+      - name: Test library and Creator
+        run: ./gradlew codec:test creator:test codec:jar --no-daemon --stacktrace
+
       - name: Build platform creators
         run: ./gradlew creator:runtimeZip --no-daemon --stacktrace
 
@@ -32,5 +38,7 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" \
             creator/build/image/jmbe-creator-*.zip \
-            --title "JMBE $GITHUB_REF_NAME" \
+            codec/build/libs/jmbe-*-16khz.*.jar \
+            --title "JMBE $GITHUB_REF_NAME (optional 16 kHz)" \
+            --prerelease --latest=false \
             --generate-notes

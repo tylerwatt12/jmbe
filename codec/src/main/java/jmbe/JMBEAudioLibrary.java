@@ -1,5 +1,6 @@
 package jmbe;
 
+import jmbe.audio.AudioOutputProcessor;
 import jmbe.codec.ambe.AMBEAudioCodec;
 import jmbe.codec.imbe.IMBEAudioCodec;
 import jmbe.iface.IAudioCodec;
@@ -19,7 +20,7 @@ public class JMBEAudioLibrary implements IAudioCodecLibrary
         sb.append(".");
         sb.append(getBuildVersion());
 
-        return sb.toString();
+        return sb.append("-16khz.1").toString();
     }
 
     @Override
@@ -65,5 +66,15 @@ public class JMBEAudioLibrary implements IAudioCodecLibrary
             default:
                 throw new IllegalArgumentException("Unsupported CODEC:" + (codec != null ? codec : "(null)"));
         }
+    }
+
+    /**
+     * Optional completed-call output processing. Legacy frame decoding stays 160 samples at 8 kHz.
+     * The provider reports its output sample rate; invoke it only on a bounded completed-call worker.
+     * Construction does not load model data or perform inference.
+     */
+    public AudioOutputProcessor getAudioOutputProcessor()
+    {
+        return new AudioOutputProcessor();
     }
 }
