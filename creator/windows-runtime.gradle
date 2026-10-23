@@ -3,8 +3,13 @@ import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.zip.ZipFile
 
-// Generated Windows Creator runtimes had unsigned native files. Preserve the official Standard
-// JDK unchanged, including its compiler, native signatures, legal notices and ct.sym.
+// Generated Windows Creator runtimes had unsigned native files. Retain the official Standard
+// JDK's files byte-for-byte, including its compiler, native signatures, legal notices and ct.sym.
+// Module archives, headers, sources and optional CDS caches are not needed to build JMBE.
+def omittedWindowsJdkFile = { String relative ->
+    relative.startsWith('jmods/') || relative.startsWith('include/') ||
+        relative == 'lib/src.zip' || relative.endsWith('.jsa')
+}
 def windowsJdks = [
     x86_64: [vendorArch: 'amd64', taskSuffix: 'X86_64', size: 248885419L,
              sha256: '5338bc6ba9b4bf20cb1570be51a5a3dc286eebdd38ea23ec391318f2227589da'],
@@ -35,7 +40,7 @@ tasks.named('startScripts') {
 
 def windowsRuntimeZip = tasks.register('windowsRuntimeZip') {
     group = 'distribution'
-    description = 'Packages both Windows Creators with intact, verified official JDKs.'
+    description = 'Packages both Windows Creators with trimmed, verified official JDKs.'
 }
 
 windowsJdks.each { architecture, specification ->
@@ -91,8 +96,11 @@ windowsJdks.each { architecture, specification ->
         dependsOn(download, tasks.named('installDist'))
         into(imageDirectory)
         from({ zipTree(archive) }) {
+            exclude { details ->
+                omittedWindowsJdkFile(details.relativePath.segments.drop(1).join('/'))
+            }
             eachFile { details ->
-                // The vendor ZIP has one enclosing JDK directory; keep every file beneath it.
+                // Remove the vendor ZIP's enclosing directory without changing retained files.
                 details.relativePath = new RelativePath(!details.directory,
                     details.relativePath.segments.drop(1) as String[])
             }
@@ -120,7 +128,7 @@ windowsJdks.each { architecture, specification ->
             }
             new ZipFile(packaged.get().archiveFile.get().asFile).withCloseable { result ->
                 ['bin/java.exe', 'bin/javac.exe', 'bin/server/jvm.dll', 'lib/modules',
-                 'jmods/jdk.compiler.jmod', 'lib/ct.sym', 'bin/creator.bat',
+                 'release', 'lib/ct.sym', 'bin/creator.bat',
                  "lib/creator-${version}.jar"].each { required ->
                     if(result.getEntry("${imageName}/${required}") == null) {
                         throw new GradleException("Windows ${architecture} Creator is missing ${required}")
@@ -131,12 +139,29 @@ windowsJdks.each { architecture, specification ->
                 if(!launcher.contains('set JAVA_HOME="%APP_HOME%"')) {
                     throw new GradleException("Windows ${architecture} Creator must use its bundled Java")
                 }
+                def release = result.getInputStream(result.getEntry("${imageName}/release"))
+                    .withCloseable { it.getText('UTF-8') }
+                def modules = release.readLines().find { it.startsWith('MODULES="') }
+                if(modules == null || !modules.substring('MODULES="'.length(), modules.length() - 1)
+                    .tokenize().contains('jdk.compiler')) {
+                    throw new GradleException("Windows ${architecture} Creator must retain the Java compiler module")
+                }
+                result.entries().each { entry ->
+                    def relative = entry.name.substring(entry.name.indexOf('/') + 1)
+                    if(!entry.directory && omittedWindowsJdkFile(relative)) {
+                        throw new GradleException("Windows ${architecture} Creator retained an unnecessary JDK file: ${relative}")
+                    }
+                }
                 new ZipFile(archive).withCloseable { vendor ->
                     vendor.entries().each { entry ->
                         if(!entry.directory) {
                             def relative = entry.name.substring(entry.name.indexOf('/') + 1)
                             def copied = result.getEntry("${imageName}/${relative}")
-                            if(copied == null || copied.size != entry.size ||
+                            if(omittedWindowsJdkFile(relative)) {
+                                if(copied != null) {
+                                    throw new GradleException("Windows ${architecture} Creator retained an unnecessary JDK file: ${relative}")
+                                }
+                            } else if(copied == null || copied.size != entry.size ||
                                 vendor.getInputStream(entry).withCloseable { sha256(it) } !=
                                     result.getInputStream(copied).withCloseable { sha256(it) }) {
                                 throw new GradleException("Windows ${architecture} vendor JDK file changed: ${relative}")
@@ -145,7 +170,7 @@ windowsJdks.each { architecture, specification ->
                     }
                 }
             }
-            logger.lifecycle("Verified Windows ${architecture} Creator: complete vendor JDK preserved byte-for-byte")
+            logger.lifecycle("Verified Windows ${architecture} Creator: trimmed vendor JDK files preserved byte-for-byte")
         }
     }
 

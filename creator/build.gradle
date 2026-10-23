@@ -36,7 +36,7 @@ jar {
 }
 
 /**
- * Beryx creates compact Linux/macOS images. Windows keeps the vendor-signed JDK intact.
+ * Beryx creates compact Linux/macOS images. Windows retains the vendor-signed JDK binaries.
  */
 runtime {
     targetPlatform("linux-aarch64-v" + version) {
