@@ -24,13 +24,19 @@ jobs:
           cache: gradle
 
       - name: Build platform creators
-        run: ./gradlew creator:runtimeZip --no-daemon --stacktrace
+        run: ./gradlew test creator:runtimeZip --no-daemon --stacktrace
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          notes_file=".github/release-notes/${GITHUB_REF_NAME}.md"
+          notes_args=(--generate-notes)
+          if [[ -f "$notes_file" ]]; then
+            notes_args=(--notes-file "$notes_file")
+          fi
           gh release create "$GITHUB_REF_NAME" \
             creator/build/image/jmbe-creator-*.zip \
             --title "JMBE $GITHUB_REF_NAME" \
-            --generate-notes
+            --verify-tag \
+            "${notes_args[@]}"
