@@ -4,17 +4,53 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing stable release tag to publish
+        required: true
+        type: string
+        default: 'v1.0.18'
+      source_commit:
+        description: Exact commit required for the existing tag
+        required: true
+        type: string
+        default: 'c4df2d147f5067a854160baaf4eeb04ffd66fba1'
 
 permissions:
   contents: write
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+      EXPECTED_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.source_commit || github.sha }}
 
     steps:
+      - name: Verify release inputs
+        run: |
+          if [[ ! "$EXPECTED_COMMIT" =~ ^[[:xdigit:]]{40}$ ]]; then
+            echo 'Expected a full 40-character hexadecimal commit SHA.'
+            exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' && ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'Manual recovery requires an existing stable vX.Y.Z tag.'
+            exit 1
+          fi
+
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+
+      - name: Verify immutable release source
+        run: |
+          if [[ "$(git rev-parse HEAD)" != "${EXPECTED_COMMIT,,}" ]]; then
+            echo 'Release tag does not match the expected source commit.'
+            exit 1
+          fi
 
       - name: Set up Java 25
         uses: actions/setup-java@v4
@@ -24,19 +60,21 @@ jobs:
           cache: gradle
 
       - name: Build platform creators
-        run: ./gradlew test creator:runtimeZip --no-daemon --stacktrace
+        env:
+          JAVA_TOOL_OPTIONS: -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=120000
+        run: ./gradlew test creator:runtimeZip --no-daemon --stacktrace --info
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          notes_file=".github/release-notes/${GITHUB_REF_NAME}.md"
+          notes_file=".github/release-notes/${RELEASE_TAG}.md"
           notes_args=(--generate-notes)
           if [[ -f "$notes_file" ]]; then
             notes_args=(--notes-file "$notes_file")
           fi
-          gh release create "$GITHUB_REF_NAME" \
+          gh release create "$RELEASE_TAG" \
             creator/build/image/jmbe-creator-*.zip \
-            --title "JMBE $GITHUB_REF_NAME" \
+            --title "JMBE $RELEASE_TAG" \
             --verify-tag \
             "${notes_args[@]}"
