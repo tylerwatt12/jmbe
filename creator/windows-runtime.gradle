@@ -112,6 +112,7 @@ windowsJdks.each { architecture, specification ->
 
     def packaged = tasks.register("packageWindows${suffix}RuntimeZip", Zip) {
         dependsOn(image)
+        mustRunAfter(tasks.named('runtime'))
         archiveFileName = "jmbe-creator-windows-${architecture}-v${version}.zip"
         destinationDirectory = layout.buildDirectory.dir('image')
         from(imageDirectory) { into(imageName) }
@@ -120,6 +121,7 @@ windowsJdks.each { architecture, specification ->
 
     def verify = tasks.register("verifyWindows${suffix}RuntimeZip") {
         dependsOn(packaged)
+        mustRunAfter(tasks.named('runtime'))
         inputs.file(archive)
         inputs.file(packaged.flatMap { it.archiveFile })
         doLast {

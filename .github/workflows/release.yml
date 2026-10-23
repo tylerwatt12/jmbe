@@ -82,6 +82,20 @@ jobs:
           osx-x86_64 macos-amd64 358806620 8d582451222420e1adb5533fbb61cf431baf2aea4ccda31e9d7098cf7bd1b0f2
           JDKS
 
+      - name: Order platform runtime verification
+        run: |
+          cat > "$RUNNER_TEMP/jmbe-release-ordering.gradle" <<'GRADLE'
+          gradle.projectsEvaluated {
+              def creator = gradle.rootProject.project(':creator')
+              creator.tasks.matching {
+                  it.name in ['packageWindowsX86_64RuntimeZip', 'packageWindowsAarch64RuntimeZip',
+                              'verifyWindowsX86_64RuntimeZip', 'verifyWindowsAarch64RuntimeZip']
+              }.configureEach {
+                  mustRunAfter(creator.tasks.named('runtime'))
+              }
+          }
+          GRADLE
+
       - name: Build platform creators
         env:
           JAVA_TOOL_OPTIONS: -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=120000
@@ -89,7 +103,7 @@ jobs:
           set -o pipefail
           build_log="$RUNNER_TEMP/jmbe-creator-build.log"
           for attempt in 1 2 3; do
-            if ./gradlew test creator:runtimeZip --no-daemon --stacktrace --info 2>&1 | tee "$build_log"; then
+            if ./gradlew test creator:runtimeZip --no-daemon --stacktrace --info --init-script "$RUNNER_TEMP/jmbe-release-ordering.gradle" 2>&1 | tee "$build_log"; then
               exit 0
             fi
             if [[ "$attempt" -eq 3 ]] ||
