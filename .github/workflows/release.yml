@@ -62,7 +62,20 @@ jobs:
       - name: Build platform creators
         env:
           JAVA_TOOL_OPTIONS: -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=120000
-        run: ./gradlew test creator:runtimeZip --no-daemon --stacktrace --info
+        run: |
+          set -o pipefail
+          build_log="$RUNNER_TEMP/jmbe-creator-build.log"
+          for attempt in 1 2 3; do
+            if ./gradlew test creator:runtimeZip --no-daemon --stacktrace --info 2>&1 | tee "$build_log"; then
+              exit 0
+            fi
+            if [[ "$attempt" -eq 3 ]] ||
+              ! grep -Fq "Execution failed for task ':creator:jre'." "$build_log" ||
+              ! grep -Eq 'java\.io\.IOException: Premature EOF|java\.net\.(SocketTimeoutException|ConnectException):|java\.net\.SocketException: Connection reset' "$build_log"; then
+              exit 1
+            fi
+            echo "Retrying JDK download after transport failure (attempt $((attempt + 1)) of 3)."
+          done
 
       - name: Publish release
         env:
