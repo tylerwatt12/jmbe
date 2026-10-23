@@ -13,7 +13,7 @@ public class JMBEAudioLibraryTest
 
         assertEquals(1, library.getMajorVersion());
         assertEquals(0, library.getMinorVersion());
-        assertEquals(17, library.getBuildVersion());
-        assertEquals("JMBE Audio Conversion Library v1.0.17", library.getVersion());
+        assertEquals(18, library.getBuildVersion());
+        assertEquals("JMBE Audio Conversion Library v1.0.18", library.getVersion());
     }
 }
