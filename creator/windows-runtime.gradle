@@ -1,0 +1,161 @@
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
+import java.util.zip.ZipFile
+
+// Generated Windows Creator runtimes had unsigned native files. Preserve the official Standard
+// JDK unchanged, including its compiler, native signatures, legal notices and ct.sym.
+def windowsJdks = [
+    x86_64: [vendorArch: 'amd64', taskSuffix: 'X86_64', size: 248885419L,
+             sha256: '5338bc6ba9b4bf20cb1570be51a5a3dc286eebdd38ea23ec391318f2227589da'],
+    aarch64: [vendorArch: 'aarch64', taskSuffix: 'Aarch64', size: 206535896L,
+              sha256: '21a1ef414433564238b6773db7d342e116e07861316b51aae568be4713a09aad']
+]
+def cacheDir = new File(gradle.gradleUserHomeDir, 'caches/jmbe/windows-jdk-25.0.1_11')
+def sha256 = { InputStream stream ->
+    def digest = MessageDigest.getInstance('SHA-256')
+    byte[] buffer = new byte[65536]
+    int count
+    while((count = stream.read(buffer)) != -1) {
+        digest.update(buffer, 0, count)
+    }
+    digest.digest().encodeHex().toString()
+}
+def verifiedArchive = { File archive, Map specification ->
+    archive.isFile() && archive.length() == specification.size &&
+        archive.withInputStream { sha256(it) } == specification.sha256
+}
+
+// Beryx selects this template only when its runtime task is in the graph. Select it explicitly
+// so the standalone Windows tasks also run their bundled Java, regardless of JAVA_HOME/PATH.
+def runtimeExtension = extensions.getByName('runtime')
+tasks.named('startScripts') {
+    windowsStartScriptGenerator.template = project.resources.text.fromUri(runtimeExtension.launcherData.get().windowsTemplateUrl)
+}
+
+def windowsRuntimeZip = tasks.register('windowsRuntimeZip') {
+    group = 'distribution'
+    description = 'Packages both Windows Creators with intact, verified official JDKs.'
+}
+
+windowsJdks.each { architecture, specification ->
+    def suffix = specification.taskSuffix
+    def imageName = "creator-windows-${architecture}-v${version}"
+    def archiveName = "bellsoft-jdk25.0.1+11-windows-${specification.vendorArch}.zip"
+    def archive = new File(cacheDir, archiveName)
+    def imageDirectory = layout.buildDirectory.dir("windows-runtime/${imageName}")
+    def vendorUrl = "https://github.com/bell-sw/Liberica/releases/download/25.0.1%2B11/${archiveName.replace('+', '%2B')}"
+
+    def download = tasks.register("downloadWindows${suffix}Jdk") {
+        inputs.properties(url: vendorUrl, size: specification.size, sha256: specification.sha256)
+        outputs.file(archive)
+        outputs.upToDateWhen { verifiedArchive(archive, specification) }
+        doLast {
+            if(verifiedArchive(archive, specification)) {
+                return
+            }
+            Files.createDirectories(cacheDir.toPath())
+            def temporary = Files.createTempFile(cacheDir.toPath(), "${architecture}-", '.part')
+            try {
+                logger.lifecycle("Downloading official Liberica JDK for Windows ${architecture}")
+                def connection = new URI(vendorUrl).toURL().openConnection()
+                connection.connectTimeout = 30000
+                connection.readTimeout = 60000
+                def digest = MessageDigest.getInstance('SHA-256')
+                long length = 0
+                connection.inputStream.withCloseable { source ->
+                    Files.newOutputStream(temporary).withCloseable { destination ->
+                        byte[] buffer = new byte[65536]
+                        int count
+                        while((count = source.read(buffer)) != -1) {
+                            length += count
+                            if(length > specification.size) {
+                                throw new GradleException("Windows ${architecture} JDK exceeds its pinned size")
+                            }
+                            digest.update(buffer, 0, count)
+                            destination.write(buffer, 0, count)
+                        }
+                    }
+                }
+                if(length != specification.size || digest.digest().encodeHex().toString() != specification.sha256) {
+                    throw new GradleException("Windows ${architecture} JDK does not match its pinned size/SHA-256")
+                }
+                Files.move(temporary, archive.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } finally {
+                Files.deleteIfExists(temporary)
+            }
+        }
+    }
+
+    def image = tasks.register("windows${suffix}Runtime", Sync) {
+        dependsOn(download, tasks.named('installDist'))
+        into(imageDirectory)
+        from({ zipTree(archive) }) {
+            eachFile { details ->
+                // The vendor ZIP has one enclosing JDK directory; keep every file beneath it.
+                details.relativePath = new RelativePath(!details.directory,
+                    details.relativePath.segments.drop(1) as String[])
+            }
+            includeEmptyDirs = false
+        }
+        from(tasks.named('installDist').map { it.destinationDir })
+        duplicatesStrategy = DuplicatesStrategy.FAIL
+    }
+
+    def packaged = tasks.register("packageWindows${suffix}RuntimeZip", Zip) {
+        dependsOn(image)
+        archiveFileName = "jmbe-creator-windows-${architecture}-v${version}.zip"
+        destinationDirectory = layout.buildDirectory.dir('image')
+        from(imageDirectory) { into(imageName) }
+        duplicatesStrategy = DuplicatesStrategy.FAIL
+    }
+
+    def verify = tasks.register("verifyWindows${suffix}RuntimeZip") {
+        dependsOn(packaged)
+        inputs.file(archive)
+        inputs.file(packaged.flatMap { it.archiveFile })
+        doLast {
+            if(!verifiedArchive(archive, specification)) {
+                throw new GradleException("Windows ${architecture} JDK cache failed verification")
+            }
+            new ZipFile(packaged.get().archiveFile.get().asFile).withCloseable { result ->
+                ['bin/java.exe', 'bin/javac.exe', 'bin/server/jvm.dll', 'lib/modules',
+                 'jmods/jdk.compiler.jmod', 'lib/ct.sym', 'bin/creator.bat',
+                 "lib/creator-${version}.jar"].each { required ->
+                    if(result.getEntry("${imageName}/${required}") == null) {
+                        throw new GradleException("Windows ${architecture} Creator is missing ${required}")
+                    }
+                }
+                def launcher = result.getInputStream(result.getEntry("${imageName}/bin/creator.bat"))
+                    .withCloseable { it.getText('UTF-8') }
+                if(!launcher.contains('set JAVA_HOME="%APP_HOME%"')) {
+                    throw new GradleException("Windows ${architecture} Creator must use its bundled Java")
+                }
+                new ZipFile(archive).withCloseable { vendor ->
+                    vendor.entries().each { entry ->
+                        if(!entry.directory) {
+                            def relative = entry.name.substring(entry.name.indexOf('/') + 1)
+                            def copied = result.getEntry("${imageName}/${relative}")
+                            if(copied == null || copied.size != entry.size ||
+                                vendor.getInputStream(entry).withCloseable { sha256(it) } !=
+                                    result.getInputStream(copied).withCloseable { sha256(it) }) {
+                                throw new GradleException("Windows ${architecture} vendor JDK file changed: ${relative}")
+                            }
+                        }
+                    }
+                }
+            }
+            logger.lifecycle("Verified Windows ${architecture} Creator: complete vendor JDK preserved byte-for-byte")
+        }
+    }
+
+    def platformZip = tasks.register("windows${suffix}RuntimeZip") {
+        group = 'distribution'
+        description = "Packages and verifies the Windows ${architecture} Creator."
+        dependsOn(verify)
+    }
+    windowsRuntimeZip.configure { dependsOn(platformZip) }
+}
+
+// Preserve the release workflow's existing entry point and all six platform asset names.
+tasks.named('runtimeZip') { dependsOn(windowsRuntimeZip) }
