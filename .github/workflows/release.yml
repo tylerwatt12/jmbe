@@ -59,6 +59,29 @@ jobs:
           java-version: '25'
           cache: gradle
 
+      - name: Cache verified vendor JDK archives
+        run: |
+          set -o pipefail
+          while read -r target platform expected_size checksum; do
+            filename="bellsoft-jdk25.0.1+11-${platform}-full.tar.gz"
+            cdn_url="https://download.bell-sw.com/java/25.0.1+11/$filename"
+            if ! grep -Fq "jdkHome = jdkDownload(\"$cdn_url\")" creator/build.gradle; then
+              continue
+            fi
+            archive="creator/build/jdks/${target}-${RELEASE_TAG}/jdk.tar.gz"
+            mkdir -p "$(dirname "$archive")"
+            curl --fail --location --connect-timeout 30 --max-time 300 --retry 3 --retry-all-errors \
+              --output "$archive.part" "https://github.com/bell-sw/Liberica/releases/download/25.0.1%2B11/${filename//+/%2B}"
+            [[ "$(stat -c %s "$archive.part")" -eq "$expected_size" ]]
+            echo "$checksum  $archive.part" | sha256sum --check --strict
+            mv "$archive.part" "$archive"
+          done <<'JDKS'
+          linux-aarch64 linux-aarch64 398326546 c6a075e81b84af9745fd141f0e70cfaa7b62b023e3547a913a65315c5b40f9e5
+          linux-x86_64 linux-amd64 404719731 03ff3e3e1dfae0e2af43935f3854257d8f3dc44d3fe582a576fa9ce2361f11c2
+          osx-aarch64 macos-aarch64 348726738 0721638c99772920bef0d5bd517bad68b652fa0a50c22572a84e8e0951f564e9
+          osx-x86_64 macos-amd64 358806620 8d582451222420e1adb5533fbb61cf431baf2aea4ccda31e9d7098cf7bd1b0f2
+          JDKS
+
       - name: Build platform creators
         env:
           JAVA_TOOL_OPTIONS: -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=120000
@@ -71,9 +94,14 @@ jobs:
             fi
             if [[ "$attempt" -eq 3 ]] ||
               ! grep -Fq "Execution failed for task ':creator:jre'." "$build_log" ||
-              ! grep -Eq 'java\.io\.IOException: Premature EOF|java\.net\.(SocketTimeoutException|ConnectException):|java\.net\.SocketException: Connection reset' "$build_log"; then
+              ! grep -Eq 'java\.io\.IOException: (Premature EOF|Server returned HTTP response code: (408|429|5[0-9]{2}))|java\.net\.(SocketTimeoutException|ConnectException):|java\.net\.SocketException: Connection reset' "$build_log"; then
               exit 1
             fi
+            for cache in creator/build/jdks/{linux-aarch64,linux-x86_64,osx-aarch64,osx-x86_64}-"$RELEASE_TAG"; do
+              if [[ -f "$cache/jdk.tar.gz" ]] && ! gzip -t "$cache/jdk.tar.gz" 2>/dev/null; then
+                rm -rf -- "$cache"
+              fi
+            done
             echo "Retrying JDK download after transport failure (attempt $((attempt + 1)) of 3)."
           done
 
